@@ -1,0 +1,144 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build ZIP and Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate semver tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Tag '$TAG' is not a valid semver version"
+            exit 1
+          fi
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag=v$TAG" >> "$GITHUB_OUTPUT"
+
+          # Detect pre-release
+          if [[ "$TAG" =~ (alpha|beta|rc|dev) ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify version in plugin files
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Check plugin header
+          HEADER_VERSION=$(grep -oP "Version:\s*\K[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?" ihumbak-woo-conta-api.php || echo "")
+          if [ "$HEADER_VERSION" != "$VERSION" ]; then
+            echo "::warning::Plugin header version ($HEADER_VERSION) does not match tag ($VERSION)"
+          fi
+
+          # Check version constant
+          CONST_VERSION=$(grep -oP "IHUMBAK_WCA_VERSION',\s*'\K[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?" ihumbak-woo-conta-api.php || echo "")
+          if [ "$CONST_VERSION" != "$VERSION" ]; then
+            echo "::warning::IHUMBAK_WCA_VERSION ($CONST_VERSION) does not match tag ($VERSION)"
+          fi
+
+          # Check composer.json
+          COMPOSER_VERSION=$(grep -oP '"version":\s*"\K[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?' composer.json || echo "")
+          if [ "$COMPOSER_VERSION" != "$VERSION" ]; then
+            echo "::warning::composer.json version ($COMPOSER_VERSION) does not match tag ($VERSION)"
+          fi
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.0'
+          extensions: dom, curl, libxml, mbstring, zip
+          tools: composer:v2
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install production dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      - name: Build production ZIP
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          SLUG="ihumbak-woo-conta-api"
+
+          # Create temp directory with plugin slug as root
+          mkdir -p "/tmp/${SLUG}"
+
+          # Rsync files, excluding dev files
+          rsync -av --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.claude' \
+            --exclude='.idea' \
+            --exclude='.vscode' \
+            --exclude='.playwright-mcp' \
+            --exclude='.editorconfig' \
+            --exclude='.gitattributes' \
+            --exclude='.gitignore' \
+            --exclude='.phpcs.xml' \
+            --exclude='phpstan.neon' \
+            --exclude='phpunit.xml' \
+            --exclude='composer.lock' \
+            --exclude='CLAUDE.md' \
+            --exclude='PLAN.md' \
+            --exclude='tests' \
+            --exclude='stubs' \
+            --exclude='docs' \
+            --exclude='scripts' \
+            --exclude='build' \
+            --exclude='dist' \
+            --exclude='node_modules' \
+            --exclude='*.log' \
+            --exclude='*.cache' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='.phpunit.result.cache' \
+            --exclude='.phpcs.cache' \
+            ./ "/tmp/${SLUG}/"
+
+          # Create ZIP
+          cd /tmp
+          zip -r "${GITHUB_WORKSPACE}/${SLUG}-${VERSION}.zip" "${SLUG}/"
+
+          echo "zip_name=${SLUG}-${VERSION}.zip" >> "$GITHUB_ENV"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.zip_name }}
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          generate_release_notes: true
+          body: |
+            ## ${{ steps.version.outputs.tag }}
+
+            ### Installation
+            1. Download `${{ env.zip_name }}`
+            2. Go to WordPress Admin → Plugins → Add New → Upload Plugin
+            3. Upload the ZIP file and activate
+
+            ### Requirements
+            - WordPress 6.0+
+            - WooCommerce 8.0+
+            - PHP 8.0+

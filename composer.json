@@ -1,0 +1,43 @@
+{
+    "name": "ihumbak/woo-conta-api",
+    "description": "WooCommerce plugin for Conta.no integration — send orders to Conta for invoice generation",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "version": "0.1.0",
+    "authors": [
+        {
+            "name": "Michal Staniecko",
+            "homepage": "https://github.com/michalstaniecko"
+        }
+    ],
+    "require": {
+        "php": "^8.0",
+        "yahnis-elsts/plugin-update-checker": "^5.6"
+    },
+    "require-dev": {
+        "dealerdirect/phpcodesniffer-composer-installer": "^1.2",
+        "php-stubs/woocommerce-stubs": "^10.6",
+        "phpcompatibility/phpcompatibility-wp": "^2.1",
+        "phpstan/phpstan": "^2.1",
+        "squizlabs/php_codesniffer": "^3.13",
+        "szepeviktor/phpstan-wordpress": "^2.0",
+        "wp-coding-standards/wpcs": "^3.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "Ihumbak\\WooConta\\": "src/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        }
+    },
+    "scripts": {
+        "lint:php": "phpcs",
+        "fix:php": "phpcbf",
+        "analyse": "phpstan analyse --memory-limit=512M"
+    }
+}

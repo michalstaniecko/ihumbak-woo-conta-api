@@ -27,6 +27,13 @@ Send WooCommerce orders to Conta.no to create invoices and sales documents. The 
 - Full OpenAPI spec: `docs/conta-external-api.json` (301 schemas)
 - Detailed analysis: `docs/conta-api-analysis.md`
 
+## Git
+
+- **Remote:** `git@github.com:michalstaniecko/ihumbak-woo-conta-api.git`
+- **Branches:** `main` (production), `develop` (active development)
+- Work on `develop`, merge to `main` for releases
+- Commit messages in English, concise, prefixed with type: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
+
 ## Coding Conventions
 
 - Follow WordPress Coding Standards (WPCS)

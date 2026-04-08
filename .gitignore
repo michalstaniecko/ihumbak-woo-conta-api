@@ -1,10 +1,47 @@
-### Example user template template
-### Example user template
+# Composer
+vendor/
+composer.phar
 
-# IntelliJ project files
-.idea
+# Node
+node_modules/
+package-lock.json
+
+# Build artifacts
+dist/
+build/
+
+# IDE files
+.idea/
+.vscode/
 *.iml
-out
-gen
+*.sublime-project
+*.sublime-workspace
+out/
+gen/
 
-.playwright-mcp
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Environment
+.env
+.env.*
+
+# Logs
+*.log
+debug.log
+
+# Cache
+*.cache
+.phpunit.result.cache
+.phpcs.cache
+
+# Playwright MCP
+.playwright-mcp/
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~

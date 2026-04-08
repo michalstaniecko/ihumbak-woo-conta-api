@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<ruleset name="ihumbak-woo-conta-api">
+	<description>WordPress Coding Standards for ihumbak-woo-conta-api plugin.</description>
+
+	<!-- Scan paths -->
+	<file>./src</file>
+	<file>./ihumbak-woo-conta-api.php</file>
+	<file>./uninstall.php</file>
+
+	<!-- Exclude paths -->
+	<exclude-pattern>/vendor/*</exclude-pattern>
+	<exclude-pattern>/node_modules/*</exclude-pattern>
+	<exclude-pattern>/tests/*</exclude-pattern>
+	<exclude-pattern>/assets/*</exclude-pattern>
+
+	<!-- Arguments -->
+	<arg value="sp"/>
+	<arg name="colors"/>
+	<arg name="extensions" value="php"/>
+	<arg name="parallel" value="8"/>
+
+	<!-- WordPress Coding Standards -->
+	<rule ref="WordPress"/>
+
+	<!-- Text domain -->
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="ihumbak-woo-conta-api"/>
+			</property>
+		</properties>
+	</rule>
+
+	<!-- Prefixes -->
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="ihumbak_wca"/>
+				<element value="Ihumbak\WooConta"/>
+			</property>
+		</properties>
+	</rule>
+
+	<!-- PHP Compatibility -->
+	<rule ref="PHPCompatibilityWP"/>
+	<config name="testVersion" value="8.0-"/>
+
+	<!-- Allow short array syntax (modern PHP) -->
+	<rule ref="Universal.Arrays.DisallowShortArraySyntax">
+		<severity>0</severity>
+	</rule>
+
+	<!-- Allow PSR-4 file naming in src/ directory -->
+	<rule ref="WordPress.Files.FileName.NotHyphenatedLowercase">
+		<exclude-pattern>/src/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.Files.FileName.InvalidClassFileName">
+		<exclude-pattern>/src/*</exclude-pattern>
+	</rule>
+</ruleset>
