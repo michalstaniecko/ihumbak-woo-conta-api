@@ -182,12 +182,21 @@ class SettingsPage {
 			wp_send_json_error( [ 'message' => $result->get_error_message() ] );
 		}
 
-		$count = count( $result );
+		// Build organizations list for the response.
+		$orgs = [];
+		foreach ( $result as $org ) {
+			if ( is_array( $org ) && isset( $org['id'], $org['name'] ) ) {
+				$orgs[] = [
+					'id'   => (int) $org['id'],
+					'name' => (string) $org['name'],
+				];
+			}
+		}
 
 		wp_send_json_success(
 			[
-				'message' => __( 'Connection successful!', 'ihumbak-woo-conta-api' ),
-				'count'   => $count,
+				'message'       => __( 'Connection successful!', 'ihumbak-woo-conta-api' ),
+				'organizations' => $orgs,
 			]
 		);
 	}
