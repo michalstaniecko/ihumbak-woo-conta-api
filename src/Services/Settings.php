@@ -63,7 +63,30 @@ class Settings {
 	 * @return array<string, mixed>
 	 */
 	public function get_all(): array {
-		$saved    = get_option( self::OPTION_NAME, [] );
+		$saved = get_option( self::OPTION_NAME, [] );
+
+		if ( ! is_array( $saved ) ) {
+			$saved = [];
+		}
+
+		// Also read from individual WC settings options (set by SettingsPage).
+		$wc_overrides = [
+			'api_key'                => get_option( 'ihumbak_wca_api_key', '' ),
+			'environment'            => get_option( 'ihumbak_wca_environment', '' ),
+			'organization_id'        => (int) get_option( 'ihumbak_wca_organization_id', 0 ),
+			'invoice_language'       => get_option( 'ihumbak_wca_invoice_language', '' ),
+			'due_date_offset'        => (int) get_option( 'ihumbak_wca_due_date_offset', 0 ),
+			'invoice_trigger_status' => get_option( 'ihumbak_wca_trigger_status', '' ),
+			'delivery_method'        => get_option( 'ihumbak_wca_delivery_method', '' ),
+		];
+
+		// Merge WC individual options over consolidated (non-empty values win).
+		foreach ( $wc_overrides as $key => $value ) {
+			if ( '' !== $value && 0 !== $value ) {
+				$saved[ $key ] = $value;
+			}
+		}
+
 		$settings = wp_parse_args( $saved, $this->get_defaults() );
 
 		/**
@@ -145,7 +168,14 @@ class Settings {
 	 * @return string
 	 */
 	public function get_invoice_trigger_status(): string {
-		return (string) $this->get_all()['invoice_trigger_status'];
+		$status = (string) $this->get_all()['invoice_trigger_status'];
+
+		// Strip 'wc-' prefix if present (WC settings store with prefix, hooks use without).
+		if ( str_starts_with( $status, 'wc-' ) ) {
+			$status = substr( $status, 3 );
+		}
+
+		return $status;
 	}
 
 	/**
