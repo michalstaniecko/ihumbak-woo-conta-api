@@ -124,7 +124,6 @@ class SettingsPage {
 		$current['environment']            = get_option( 'ihumbak_wca_environment', 'sandbox' );
 		$current['organization_id']        = (int) get_option( 'ihumbak_wca_organization_id', 0 );
 		$current['invoice_language']       = get_option( 'ihumbak_wca_invoice_language', 'NO' );
-		$current['due_date_offset']        = (int) get_option( 'ihumbak_wca_due_date_offset', 14 );
 		$current['invoice_trigger_status'] = get_option( 'ihumbak_wca_trigger_status', 'wc-processing' );
 		$current['delivery_method']        = get_option( 'ihumbak_wca_delivery_method', 'EMAIL' );
 		$current['auto_sync_enabled']      = 'yes' === get_option( 'ihumbak_wca_auto_sync', 'no' );
@@ -319,18 +318,6 @@ class SettingsPage {
 					'EN' => __( 'English', 'ihumbak-woo-conta-api' ),
 				],
 				'default' => 'NO',
-			],
-			[
-				'type'              => 'number',
-				'id'                => 'ihumbak_wca_due_date_offset',
-				'name'              => __( 'Due Date Offset (days)', 'ihumbak-woo-conta-api' ),
-				'desc'              => __( 'Number of days after the invoice date for the due date.', 'ihumbak-woo-conta-api' ),
-				'desc_tip'          => true,
-				'default'           => '14',
-				'custom_attributes' => [
-					'min' => '0',
-					'max' => '365',
-				],
 			],
 			[
 				'type'    => 'select',

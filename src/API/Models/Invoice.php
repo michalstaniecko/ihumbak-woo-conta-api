@@ -330,9 +330,8 @@ class Invoice {
 
 		$invoice->invoice_date = $date;
 
-		$due_date_offset           = $settings->get_due_date_offset();
-		$due_timestamp             = strtotime( $date . ' +' . $due_date_offset . ' days' );
-		$invoice->invoice_due_date = ( false !== $due_timestamp ) ? gmdate( 'Y-m-d', $due_timestamp ) : $date;
+		// Due date = invoice date (customer pays at order time, invoice is created after).
+		$invoice->invoice_due_date = $date;
 
 		// Currency and language.
 		$invoice->invoice_currency = $order->get_currency();

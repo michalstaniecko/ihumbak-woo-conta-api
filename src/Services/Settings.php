@@ -50,7 +50,6 @@ class Settings {
 				'reduced-rate' => 'medium',
 				'zero-rate'    => 'zero.rate',
 			],
-			'due_date_offset'        => 14,
 			'invoice_language'       => 'NO',
 			'invoice_trigger_status' => 'processing',
 			'delivery_method'        => 'EMAIL',
@@ -76,7 +75,6 @@ class Settings {
 			'environment'            => get_option( 'ihumbak_wca_environment', '' ),
 			'organization_id'        => (int) get_option( 'ihumbak_wca_organization_id', 0 ),
 			'invoice_language'       => get_option( 'ihumbak_wca_invoice_language', '' ),
-			'due_date_offset'        => (int) get_option( 'ihumbak_wca_due_date_offset', 0 ),
 			'invoice_trigger_status' => get_option( 'ihumbak_wca_trigger_status', '' ),
 			'delivery_method'        => get_option( 'ihumbak_wca_delivery_method', '' ),
 		];
@@ -149,15 +147,6 @@ class Settings {
 	 */
 	public function get_vat_mapping(): array {
 		return (array) $this->get_all()['vat_mapping'];
-	}
-
-	/**
-	 * Get the invoice due date offset in days.
-	 *
-	 * @return int
-	 */
-	public function get_due_date_offset(): int {
-		return (int) $this->get_all()['due_date_offset'];
 	}
 
 	/**
