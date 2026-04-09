@@ -107,19 +107,38 @@ class Customer {
 		$data = [
 			'name'                    => $this->name,
 			'customerType'            => $this->customer_type,
-			'emailAddress'            => $this->email_address,
-			'phoneNo'                 => $this->phone_no,
-			'orgNo'                   => $this->org_no,
 			'customerAddressLine1'    => $this->address_line1,
-			'customerAddressLine2'    => $this->address_line2,
 			'customerAddressPostcode' => $this->address_postcode,
 			'customerAddressCity'     => $this->address_city,
-			'customerAddressCountry'  => $this->address_country,
-			'deliveryMethod'          => $this->delivery_method,
 		];
 
 		if ( null !== $this->id ) {
 			$data['id'] = $this->id;
+		}
+
+		// Only include optional fields if non-empty.
+		if ( '' !== $this->email_address ) {
+			$data['emailAddress'] = $this->email_address;
+		}
+
+		if ( '' !== $this->phone_no ) {
+			$data['phoneNo'] = $this->phone_no;
+		}
+
+		if ( '' !== $this->org_no ) {
+			$data['orgNo'] = $this->org_no;
+		}
+
+		if ( '' !== $this->address_line2 ) {
+			$data['customerAddressLine2'] = $this->address_line2;
+		}
+
+		if ( '' !== $this->address_country ) {
+			$data['customerAddressCountry'] = $this->address_country;
+		}
+
+		if ( '' !== $this->delivery_method ) {
+			$data['invoiceDeliveryMethod'] = $this->delivery_method;
 		}
 
 		return $data;
@@ -174,7 +193,9 @@ class Customer {
 		$customer->address_line2    = $order->get_billing_address_2();
 		$customer->address_postcode = $order->get_billing_postcode();
 		$customer->address_city     = $order->get_billing_city();
-		$customer->address_country  = $order->get_billing_country();
+		$country_code               = $order->get_billing_country();
+		$countries                  = WC()->countries->get_countries();
+		$customer->address_country  = $countries[ $country_code ] ?? $country_code;
 
 		return $customer;
 	}

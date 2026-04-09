@@ -134,14 +134,31 @@ class Client {
 
 		$this->logger->log_api_request( $method, $url, $args );
 
+		// Debug logging.
+		error_log( '[WooConta Debug] API Request: ' . $method . ' ' . $url );
+		error_log( '[WooConta Debug] API Key: ' . ( '' !== $this->settings->get_api_key() ? 'set (' . strlen( $this->settings->get_api_key() ) . ' chars)' : 'EMPTY' ) );
+		error_log( '[WooConta Debug] Base URL: ' . $this->settings->get_base_url() );
+		error_log( '[WooConta Debug] Org ID: ' . $this->settings->get_organization_id() );
+		if ( isset( $args['body'] ) ) {
+			error_log( '[WooConta Debug] Request body: ' . ( is_string( $args['body'] ) ? $args['body'] : wp_json_encode( $args['body'] ) ) );
+		}
+
 		$response = wp_remote_request( $url, $args );
 
-		if ( ! is_wp_error( $response ) ) {
+		if ( is_wp_error( $response ) ) {
+			error_log( '[WooConta Debug] WP_Error: ' . $response->get_error_message() . ' | Code: ' . $response->get_error_code() );
+		} else {
 			$this->logger->log_api_response(
 				$url,
 				wp_remote_retrieve_response_code( $response ),
 				wp_remote_retrieve_body( $response )
 			);
+			$debug_code = wp_remote_retrieve_response_code( $response );
+			$debug_body = wp_remote_retrieve_body( $response );
+			error_log( '[WooConta Debug] API Response: HTTP ' . $debug_code );
+			if ( $debug_code >= 400 ) {
+				error_log( '[WooConta Debug] Error body: ' . $debug_body );
+			}
 		}
 
 		return $this->parse_response( $response, $url );

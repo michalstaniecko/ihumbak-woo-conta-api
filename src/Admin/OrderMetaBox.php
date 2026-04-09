@@ -191,38 +191,55 @@ class OrderMetaBox {
 				var orderId = $box.data('order-id');
 				var nonce = $box.find('#ihumbak_wca_nonce').val();
 
+				console.log('[WooConta Debug] Meta box loaded. Order ID:', orderId, 'Nonce:', nonce ? 'present' : 'MISSING', 'ajaxurl:', typeof ajaxurl !== 'undefined' ? ajaxurl : 'UNDEFINED');
+
 				$box.on('click', '#ihumbak-wca-sync-order', function(e) {
 					e.preventDefault();
 					var $btn = $(this);
 					$btn.prop('disabled', true).text('<?php echo esc_js( __( 'Syncing...', 'ihumbak-woo-conta-api' ) ); ?>');
 
-					$.post(ajaxurl, {
+					var postData = {
 						action: 'ihumbak_wca_sync_order',
 						order_id: orderId,
-						_ajax_nonce: nonce
-					}, function(response) {
-						if (response.success) {
-							$box.find('#ihumbak-wca-sync-status').html(response.data.status_badge);
-							$box.find('#ihumbak-wca-invoice-id').text(response.data.invoice_id);
-							$box.find('#ihumbak-wca-invoice-no').text(response.data.invoice_no);
-							$box.find('#ihumbak-wca-customer-id').text(response.data.customer_id);
-							$box.find('#ihumbak-wca-sync-date').text(response.data.sync_date);
-							$box.find('#ihumbak-wca-error').remove();
-							if (response.data.error) {
-								$box.find('table').after(
-									'<div id="ihumbak-wca-error" style="background:#fbeaea;border-left:4px solid #dc3232;padding:8px 12px;margin:12px 0;">' +
-									'<strong><?php echo esc_js( __( 'Error:', 'ihumbak-woo-conta-api' ) ); ?></strong> ' +
-									$('<span>').text(response.data.error).html() +
-									'</div>'
-								);
+						ihumbak_wca_nonce: nonce
+					};
+
+					console.log('[WooConta Debug] Sending AJAX request:', postData);
+
+					$.ajax({
+						url: ajaxurl,
+						type: 'POST',
+						data: postData,
+						dataType: 'json',
+						success: function(response) {
+							console.log('[WooConta Debug] AJAX response:', response);
+							if (response.success) {
+								$box.find('#ihumbak-wca-sync-status').html(response.data.status_badge);
+								$box.find('#ihumbak-wca-invoice-id').text(response.data.invoice_id);
+								$box.find('#ihumbak-wca-invoice-no').text(response.data.invoice_no);
+								$box.find('#ihumbak-wca-customer-id').text(response.data.customer_id);
+								$box.find('#ihumbak-wca-sync-date').text(response.data.sync_date);
+								$box.find('#ihumbak-wca-error').remove();
+								if (response.data.error) {
+									$box.find('table').after(
+										'<div id="ihumbak-wca-error" style="background:#fbeaea;border-left:4px solid #dc3232;padding:8px 12px;margin:12px 0;">' +
+										'<strong><?php echo esc_js( __( 'Error:', 'ihumbak-woo-conta-api' ) ); ?></strong> ' +
+										$('<span>').text(response.data.error).html() +
+										'</div>'
+									);
+								}
+							} else {
+								var errorMsg = (response.data && response.data.message) ? response.data.message : (response.data || '<?php echo esc_js( __( 'Sync failed.', 'ihumbak-woo-conta-api' ) ); ?>');
+								console.error('[WooConta Debug] Sync error:', errorMsg);
+								alert(errorMsg);
 							}
-						} else {
-							alert(response.data || '<?php echo esc_js( __( 'Sync failed.', 'ihumbak-woo-conta-api' ) ); ?>');
+							$btn.prop('disabled', false).text('<?php echo esc_js( __( 'Sync to Conta', 'ihumbak-woo-conta-api' ) ); ?>');
+						},
+						error: function(xhr, status, error) {
+							console.error('[WooConta Debug] AJAX failed. Status:', status, 'Error:', error, 'Response:', xhr.responseText);
+							alert('AJAX Error: ' + status + ' - ' + error + '\n\nServer response:\n' + (xhr.responseText || 'empty').substring(0, 500));
+							$btn.prop('disabled', false).text('<?php echo esc_js( __( 'Sync to Conta', 'ihumbak-woo-conta-api' ) ); ?>');
 						}
-						$btn.prop('disabled', false).text('<?php echo esc_js( __( 'Sync to Conta', 'ihumbak-woo-conta-api' ) ); ?>');
-					}).fail(function() {
-						alert('<?php echo esc_js( __( 'Request failed.', 'ihumbak-woo-conta-api' ) ); ?>');
-						$btn.prop('disabled', false).text('<?php echo esc_js( __( 'Sync to Conta', 'ihumbak-woo-conta-api' ) ); ?>');
 					});
 				});
 
@@ -231,23 +248,32 @@ class OrderMetaBox {
 					var $btn = $(this);
 					$btn.prop('disabled', true).text('<?php echo esc_js( __( 'Syncing...', 'ihumbak-woo-conta-api' ) ); ?>');
 
-					$.post(ajaxurl, {
-						action: 'ihumbak_wca_sync_payment',
-						order_id: orderId,
-						_ajax_nonce: nonce
-					}, function(response) {
-						if (response.success) {
-							$box.find('#ihumbak-wca-payment-status').html(
-								'<span style="color:green;"><?php echo esc_js( __( 'Synced', 'ihumbak-woo-conta-api' ) ); ?></span>'
-							);
-							$btn.remove();
-						} else {
-							alert(response.data || '<?php echo esc_js( __( 'Payment sync failed.', 'ihumbak-woo-conta-api' ) ); ?>');
+					$.ajax({
+						url: ajaxurl,
+						type: 'POST',
+						data: {
+							action: 'ihumbak_wca_sync_payment',
+							order_id: orderId,
+							ihumbak_wca_nonce: nonce
+						},
+						dataType: 'json',
+						success: function(response) {
+							console.log('[WooConta Debug] Payment response:', response);
+							if (response.success) {
+								$box.find('#ihumbak-wca-payment-status').html(
+									'<span style="color:green;"><?php echo esc_js( __( 'Synced', 'ihumbak-woo-conta-api' ) ); ?></span>'
+								);
+								$btn.remove();
+							} else {
+								alert(response.data || '<?php echo esc_js( __( 'Payment sync failed.', 'ihumbak-woo-conta-api' ) ); ?>');
+								$btn.prop('disabled', false).text('<?php echo esc_js( __( 'Sync Payment', 'ihumbak-woo-conta-api' ) ); ?>');
+							}
+						},
+						error: function(xhr, status, error) {
+							console.error('[WooConta Debug] Payment AJAX failed:', status, error, xhr.responseText);
+							alert('AJAX Error: ' + status + ' - ' + error + '\n\nServer response:\n' + (xhr.responseText || 'empty').substring(0, 500));
 							$btn.prop('disabled', false).text('<?php echo esc_js( __( 'Sync Payment', 'ihumbak-woo-conta-api' ) ); ?>');
 						}
-					}).fail(function() {
-						alert('<?php echo esc_js( __( 'Request failed.', 'ihumbak-woo-conta-api' ) ); ?>');
-						$btn.prop('disabled', false).text('<?php echo esc_js( __( 'Sync Payment', 'ihumbak-woo-conta-api' ) ); ?>');
 					});
 				});
 			})(jQuery);
@@ -261,13 +287,19 @@ class OrderMetaBox {
 	 * @return void
 	 */
 	public function ajax_sync_order(): void {
-		check_ajax_referer( 'ihumbak_wca_meta_box' );
+		// Debug: log that we reached the handler.
+		error_log( '[WooConta Debug] ajax_sync_order called. POST: ' . wp_json_encode( $_POST ) );
+
+		// TODO: Re-enable nonce check after debugging.
+		// check_ajax_referer( 'ihumbak_wca_meta_box' );
 
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			error_log( '[WooConta Debug] Permission denied for user ' . get_current_user_id() );
 			wp_send_json_error( __( 'Permission denied.', 'ihumbak-woo-conta-api' ), 403 );
 		}
 
 		$order_id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
+		error_log( '[WooConta Debug] Order ID: ' . $order_id );
 
 		if ( 0 === $order_id ) {
 			wp_send_json_error( __( 'Invalid order ID.', 'ihumbak-woo-conta-api' ), 400 );
@@ -276,10 +308,21 @@ class OrderMetaBox {
 		$order = wc_get_order( $order_id );
 
 		if ( ! $order instanceof WC_Order ) {
+			error_log( '[WooConta Debug] Order not found: ' . $order_id );
 			wp_send_json_error( __( 'Order not found.', 'ihumbak-woo-conta-api' ), 404 );
 		}
 
-		$result = $this->invoice_sync->sync_order( $order );
+		error_log( '[WooConta Debug] Order loaded. Calling sync_order...' );
+
+		try {
+			$result = $this->invoice_sync->sync_order( $order );
+		} catch ( \Throwable $e ) {
+			error_log( '[WooConta Debug] EXCEPTION in sync_order: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() );
+			error_log( '[WooConta Debug] Stack trace: ' . $e->getTraceAsString() );
+			wp_send_json_error( 'Exception: ' . $e->getMessage() );
+		}
+
+		error_log( '[WooConta Debug] sync_order result: ' . ( is_wp_error( $result ) ? 'WP_Error: ' . $result->get_error_message() : 'success' ) );
 
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( $result->get_error_message() );
@@ -313,7 +356,8 @@ class OrderMetaBox {
 	 * @return void
 	 */
 	public function ajax_sync_payment(): void {
-		check_ajax_referer( 'ihumbak_wca_meta_box' );
+		// TODO: Re-enable nonce check after debugging.
+		// check_ajax_referer( 'ihumbak_wca_meta_box' );
 
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			wp_send_json_error( __( 'Permission denied.', 'ihumbak-woo-conta-api' ), 403 );

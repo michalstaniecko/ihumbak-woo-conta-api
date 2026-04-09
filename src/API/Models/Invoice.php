@@ -319,9 +319,14 @@ class Invoice {
 		$invoice              = new self();
 		$invoice->customer_id = $customer_id;
 
-		// Dates.
+		// Dates — Conta rejects invoice dates in the past, so use today if order date is older.
+		$today      = gmdate( 'Y-m-d' );
 		$order_date = $order->get_date_created();
-		$date       = ( null !== $order_date ) ? $order_date->date( 'Y-m-d' ) : gmdate( 'Y-m-d' );
+		$date       = ( null !== $order_date ) ? $order_date->date( 'Y-m-d' ) : $today;
+
+		if ( $date < $today ) {
+			$date = $today;
+		}
 
 		$invoice->invoice_date = $date;
 
@@ -361,6 +366,11 @@ class Invoice {
 				continue;
 			}
 
+			// Skip free shipping lines.
+			if ( (float) $shipping->get_total() <= 0 ) {
+				continue;
+			}
+
 			$invoice_lines[] = InvoiceLine::from_shipping( $shipping, $line_no );
 			++$line_no;
 		}
@@ -377,11 +387,14 @@ class Invoice {
 		$invoice->invoice_lines = $invoice_lines;
 		$invoice->show_discount = $has_discount;
 
-		// Delivery address from shipping.
+		// Delivery address from shipping — convert country code to full name.
 		$invoice->delivery_address  = $order->get_shipping_address_1();
 		$invoice->delivery_postcode = $order->get_shipping_postcode();
 		$invoice->delivery_city     = $order->get_shipping_city();
-		$invoice->delivery_country  = $order->get_shipping_country();
+
+		$shipping_country_code     = $order->get_shipping_country();
+		$countries                 = WC()->countries->get_countries();
+		$invoice->delivery_country = $countries[ $shipping_country_code ] ?? $shipping_country_code;
 
 		return $invoice;
 	}
