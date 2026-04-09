@@ -38,6 +38,6 @@
     "scripts": {
         "lint:php": "phpcs",
         "fix:php": "phpcbf",
-        "analyse": "phpstan analyse --memory-limit=512M"
+        "analyse": "phpstan analyse --memory-limit=1G"
     }
 }
