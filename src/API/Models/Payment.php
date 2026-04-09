@@ -73,8 +73,14 @@ class Payment {
 		$date_paid     = $order->get_date_paid();
 		$payment->date = ( null !== $date_paid ) ? $date_paid->date( 'Y-m-d' ) : gmdate( 'Y-m-d' );
 
-		$payment->amount      = (float) $order->get_total();
-		$payment->description = 'WooCommerce Order #' . $order->get_order_number();
+		$payment->amount = (float) $order->get_total();
+
+		$payment_method = $order->get_payment_method_title();
+		if ( '' !== $payment_method ) {
+			$payment->description = 'WooCommerce Order #' . $order->get_order_number() . ' (' . $payment_method . ')';
+		} else {
+			$payment->description = 'WooCommerce Order #' . $order->get_order_number();
+		}
 
 		return $payment;
 	}
