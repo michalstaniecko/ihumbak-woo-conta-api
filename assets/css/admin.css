@@ -1,0 +1,24 @@
+/**
+ * Admin styles for Conta.no integration settings.
+ *
+ * @package Ihumbak\WooConta
+ */
+
+.ihumbak-wca-settings .test-connection-wrapper {
+	margin: 10px 0;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.ihumbak-wca-settings .connection-result {
+	font-weight: 600;
+}
+
+.ihumbak-wca-success {
+	color: #00a32a;
+}
+
+.ihumbak-wca-error {
+	color: #d63638;
+}
