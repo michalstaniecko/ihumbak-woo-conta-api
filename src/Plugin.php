@@ -9,6 +9,16 @@ declare(strict_types=1);
 
 namespace Ihumbak\WooConta;
 
+use Ihumbak\WooConta\Admin\OrderMetaBox;
+use Ihumbak\WooConta\Admin\SettingsPage;
+use Ihumbak\WooConta\API\Client;
+use Ihumbak\WooConta\API\Endpoints\Customers;
+use Ihumbak\WooConta\API\Endpoints\Invoices;
+use Ihumbak\WooConta\API\Endpoints\Payments;
+use Ihumbak\WooConta\Modules\CustomerSync;
+use Ihumbak\WooConta\Modules\InvoiceSync;
+use Ihumbak\WooConta\Modules\OrderHooks;
+use Ihumbak\WooConta\Modules\PaymentSync;
 use Ihumbak\WooConta\Modules\Updates\UpdateService;
 use Ihumbak\WooConta\Services\Logger;
 use Ihumbak\WooConta\Services\Settings;
@@ -91,6 +101,30 @@ final class Plugin {
 		$update_service = new UpdateService();
 		if ( $update_service->is_enabled() ) {
 			$update_service->init();
+		}
+
+		// API client and endpoints.
+		$client    = new Client( $this->settings, $this->logger );
+		$customers = new Customers( $client, $this->settings );
+		$invoices  = new Invoices( $client, $this->settings );
+		$payments  = new Payments( $client, $this->settings );
+
+		// Sync modules.
+		$customer_sync = new CustomerSync( $customers, $this->logger );
+		$invoice_sync  = new InvoiceSync( $invoices, $customer_sync, $this->vat_mapper, $this->settings, $this->logger );
+		$payment_sync  = new PaymentSync( $payments, $invoices, $this->settings, $this->logger );
+
+		// WooCommerce order hooks.
+		$order_hooks = new OrderHooks( $invoice_sync, $payment_sync, $this->settings, $this->logger );
+		$order_hooks->register();
+
+		// Admin UI (only in admin context).
+		if ( is_admin() ) {
+			$settings_page = new SettingsPage( $this->settings, $this->logger, $this->vat_mapper );
+			$settings_page->init();
+
+			$order_meta_box = new OrderMetaBox( $invoice_sync, $payment_sync );
+			$order_meta_box->register();
 		}
 	}
 
