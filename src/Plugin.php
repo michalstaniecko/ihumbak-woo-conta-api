@@ -10,6 +10,9 @@ declare(strict_types=1);
 namespace Ihumbak\WooConta;
 
 use Ihumbak\WooConta\Modules\Updates\UpdateService;
+use Ihumbak\WooConta\Services\Logger;
+use Ihumbak\WooConta\Services\Settings;
+use Ihumbak\WooConta\Services\VatMapper;
 
 /**
  * Plugin bootstrap class.
@@ -22,6 +25,27 @@ final class Plugin {
 	 * @var self|null
 	 */
 	private static ?self $instance = null;
+
+	/**
+	 * Settings service.
+	 *
+	 * @var Settings|null
+	 */
+	private ?Settings $settings = null;
+
+	/**
+	 * Logger service.
+	 *
+	 * @var Logger|null
+	 */
+	private ?Logger $logger = null;
+
+	/**
+	 * VAT mapper service.
+	 *
+	 * @var VatMapper|null
+	 */
+	private ?VatMapper $vat_mapper = null;
 
 	/**
 	 * Get the singleton instance.
@@ -58,10 +82,55 @@ final class Plugin {
 	 * @return void
 	 */
 	private function register_services(): void {
+		// Foundation services.
+		$this->settings   = new Settings();
+		$this->logger     = new Logger();
+		$this->vat_mapper = new VatMapper( $this->settings );
+
+		// Auto-updater.
 		$update_service = new UpdateService();
 		if ( $update_service->is_enabled() ) {
 			$update_service->init();
 		}
+	}
+
+	/**
+	 * Get the Settings service.
+	 *
+	 * @return Settings
+	 */
+	public function settings(): Settings {
+		if ( null === $this->settings ) {
+			$this->settings = new Settings();
+		}
+
+		return $this->settings;
+	}
+
+	/**
+	 * Get the Logger service.
+	 *
+	 * @return Logger
+	 */
+	public function logger(): Logger {
+		if ( null === $this->logger ) {
+			$this->logger = new Logger();
+		}
+
+		return $this->logger;
+	}
+
+	/**
+	 * Get the VatMapper service.
+	 *
+	 * @return VatMapper
+	 */
+	public function vat_mapper(): VatMapper {
+		if ( null === $this->vat_mapper ) {
+			$this->vat_mapper = new VatMapper( $this->settings() );
+		}
+
+		return $this->vat_mapper;
 	}
 
 	/**
