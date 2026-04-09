@@ -127,6 +127,7 @@ class SettingsPage {
 		$current['due_date_offset']        = (int) get_option( 'ihumbak_wca_due_date_offset', 14 );
 		$current['invoice_trigger_status'] = get_option( 'ihumbak_wca_trigger_status', 'wc-processing' );
 		$current['delivery_method']        = get_option( 'ihumbak_wca_delivery_method', 'EMAIL' );
+		$current['auto_sync_enabled']      = 'yes' === get_option( 'ihumbak_wca_auto_sync', 'no' );
 
 		$current['vat_mapping'] = [
 			''             => get_option( 'ihumbak_wca_vat_standard', 'high' ),
@@ -350,6 +351,13 @@ class SettingsPage {
 					'MAIL'           => __( 'Postal Mail', 'ihumbak-woo-conta-api' ),
 				],
 				'default' => 'EMAIL',
+			],
+			[
+				'type'    => 'checkbox',
+				'id'      => 'ihumbak_wca_auto_sync',
+				'name'    => __( 'Auto-sync invoices', 'ihumbak-woo-conta-api' ),
+				'desc'    => __( 'Automatically create invoices when order status changes. When disabled, use the "Sync to Conta" button on each order.', 'ihumbak-woo-conta-api' ),
+				'default' => 'no',
 			],
 			[
 				'type' => 'sectionend',

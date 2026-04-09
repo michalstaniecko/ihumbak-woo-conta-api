@@ -86,13 +86,15 @@ class OrderHooks {
 	 * @return void
 	 */
 	public function register(): void {
-		// Order status change hooks.
-		$trigger_status = $this->settings->get_invoice_trigger_status();
-		add_action( 'woocommerce_order_status_' . $trigger_status, [ $this, 'on_invoice_trigger' ], 10, 1 );
-		add_action( 'woocommerce_order_status_completed', [ $this, 'on_order_completed' ], 10, 1 );
-		add_action( 'woocommerce_order_status_refunded', [ $this, 'on_order_refunded' ], 10, 1 );
+		// Order status change hooks (only if auto-sync is enabled).
+		if ( $this->settings->is_auto_sync_enabled() ) {
+			$trigger_status = $this->settings->get_invoice_trigger_status();
+			add_action( 'woocommerce_order_status_' . $trigger_status, [ $this, 'on_invoice_trigger' ], 10, 1 );
+			add_action( 'woocommerce_order_status_completed', [ $this, 'on_order_completed' ], 10, 1 );
+			add_action( 'woocommerce_order_status_refunded', [ $this, 'on_order_refunded' ], 10, 1 );
+		}
 
-		// Action Scheduler handlers.
+		// Action Scheduler handlers (always registered — used by bulk action and manual sync).
 		add_action( 'ihumbak_wca_sync_invoice', [ $this, 'handle_sync_invoice' ], 10, 1 );
 		add_action( 'ihumbak_wca_sync_payment', [ $this, 'handle_sync_payment' ], 10, 1 );
 		add_action( 'ihumbak_wca_create_credit_note', [ $this, 'handle_create_credit_note' ], 10, 1 );

@@ -54,6 +54,7 @@ class Settings {
 			'invoice_language'       => 'NO',
 			'invoice_trigger_status' => 'processing',
 			'delivery_method'        => 'EMAIL',
+			'auto_sync_enabled'      => false,
 		];
 	}
 
@@ -85,6 +86,12 @@ class Settings {
 			if ( '' !== $value && 0 !== $value ) {
 				$saved[ $key ] = $value;
 			}
+		}
+
+		// Boolean options from WC (checkboxes store 'yes'/'no').
+		$auto_sync_raw = get_option( 'ihumbak_wca_auto_sync', '' );
+		if ( '' !== $auto_sync_raw ) {
+			$saved['auto_sync_enabled'] = 'yes' === $auto_sync_raw;
 		}
 
 		$settings = wp_parse_args( $saved, $this->get_defaults() );
@@ -185,6 +192,15 @@ class Settings {
 	 */
 	public function get_delivery_method(): string {
 		return (string) $this->get_all()['delivery_method'];
+	}
+
+	/**
+	 * Check whether automatic invoice sync on order status change is enabled.
+	 *
+	 * @return bool True if auto-sync is enabled, false by default.
+	 */
+	public function is_auto_sync_enabled(): bool {
+		return (bool) $this->get_all()['auto_sync_enabled'];
 	}
 
 	/**
