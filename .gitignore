@@ -28,6 +28,9 @@ Desktop.ini
 .env
 .env.*
 
+# API keys / secrets
+docs/sandbox-api-key
+
 # Logs
 *.log
 debug.log

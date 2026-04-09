@@ -26,6 +26,7 @@ Send WooCommerce orders to Conta.no to create invoices and sales documents. The 
 - Skill: `/conta-api` — loads Conta API endpoint reference and data models
 - Full OpenAPI spec: `docs/conta-external-api.json` (301 schemas)
 - Detailed analysis: `docs/conta-api-analysis.md`
+- **Sandbox API key:** stored in `docs/sandbox-api-key` (do not commit to public repos)
 
 ## Git
 
