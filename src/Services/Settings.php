@@ -55,6 +55,7 @@ class Settings {
 			'delivery_method'        => 'EMAIL',
 			'auto_sync_enabled'      => false,
 			'vat_number_field'       => '',
+			'personal_message_template' => 'WooCommerce Order #{order_id} ({payment_method})',
 		];
 	}
 
@@ -79,6 +80,7 @@ class Settings {
 			'invoice_trigger_status' => get_option( 'ihumbak_wca_trigger_status', '' ),
 			'delivery_method'        => get_option( 'ihumbak_wca_delivery_method', '' ),
 			'vat_number_field'       => get_option( 'ihumbak_wca_vat_number_field', '' ),
+			'personal_message_template' => get_option( 'ihumbak_wca_personal_message_template', '' ),
 		];
 
 		// Merge WC individual options over consolidated (non-empty values win).
@@ -192,6 +194,15 @@ class Settings {
 	 */
 	public function get_vat_number_field(): string {
 		return (string) $this->get_all()['vat_number_field'];
+	}
+
+	/**
+	 * Get the personal message template for invoices.
+	 *
+	 * @return string Template with {order_id} and {payment_method} placeholders.
+	 */
+	public function get_personal_message_template(): string {
+		return (string) $this->get_all()['personal_message_template'];
 	}
 
 	/**

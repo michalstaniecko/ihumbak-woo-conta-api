@@ -128,6 +128,7 @@ class SettingsPage {
 		$current['delivery_method']        = get_option( 'ihumbak_wca_delivery_method', 'EMAIL' );
 		$current['auto_sync_enabled']      = 'yes' === get_option( 'ihumbak_wca_auto_sync', 'no' );
 		$current['vat_number_field']       = get_option( 'ihumbak_wca_vat_number_field', '' );
+		$current['personal_message_template'] = get_option( 'ihumbak_wca_personal_message_template', '' );
 
 		$current['vat_mapping'] = [
 			''             => get_option( 'ihumbak_wca_vat_standard', 'high' ),
@@ -346,6 +347,13 @@ class SettingsPage {
 				'name'    => __( 'VAT Number Field', 'ihumbak-woo-conta-api' ),
 				'desc'    => __( 'WooCommerce order meta key that contains the customer VAT number (e.g. <code>_billing_vat_number</code>, <code>_vat_number</code>). Leave empty to skip.', 'ihumbak-woo-conta-api' ),
 				'default' => '',
+			],
+			[
+				'type'    => 'text',
+				'id'      => 'ihumbak_wca_personal_message_template',
+				'name'    => __( 'Invoice Personal Message', 'ihumbak-woo-conta-api' ),
+				'desc'    => __( 'Message shown on the invoice PDF. Available placeholders: <code>{order_id}</code>, <code>{payment_method}</code>. Max 300 characters. Leave empty to skip.', 'ihumbak-woo-conta-api' ),
+				'default' => 'WooCommerce Order #{order_id} ({payment_method})',
 			],
 			[
 				'type'    => 'checkbox',

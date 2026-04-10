@@ -340,6 +340,16 @@ class Invoice {
 		// Customer reference.
 		$invoice->customer_reference = (string) $order->get_order_number();
 
+		// Personal message — rendered from template in settings.
+		$template = $settings->get_personal_message_template();
+		if ( '' !== $template ) {
+			$invoice->personal_message = substr( str_replace(
+				[ '{order_id}', '{payment_method}' ],
+				[ (string) $order->get_order_number(), $order->get_payment_method_title() ],
+				$template
+			), 0, 300 );
+		}
+
 		// Build invoice lines.
 		$line_no       = 1;
 		$has_discount  = false;
