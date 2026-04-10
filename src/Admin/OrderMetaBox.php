@@ -12,6 +12,7 @@ namespace Ihumbak\WooConta\Admin;
 use Ihumbak\WooConta\Modules\CustomerSync;
 use Ihumbak\WooConta\Modules\InvoiceSync;
 use Ihumbak\WooConta\Modules\PaymentSync;
+use Ihumbak\WooConta\Services\Settings;
 use WC_Order;
 use WP_Post;
 
@@ -35,14 +36,23 @@ class OrderMetaBox {
 	private PaymentSync $payment_sync;
 
 	/**
+	 * Plugin settings service.
+	 *
+	 * @var Settings
+	 */
+	private Settings $settings;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param InvoiceSync $invoice_sync Invoice sync module.
 	 * @param PaymentSync $payment_sync Payment sync module.
+	 * @param Settings    $settings     Plugin settings service.
 	 */
-	public function __construct( InvoiceSync $invoice_sync, PaymentSync $payment_sync ) {
+	public function __construct( InvoiceSync $invoice_sync, PaymentSync $payment_sync, Settings $settings ) {
 		$this->invoice_sync = $invoice_sync;
 		$this->payment_sync = $payment_sync;
+		$this->settings     = $settings;
 	}
 
 	/**
@@ -101,7 +111,9 @@ class OrderMetaBox {
 		$is_synced    = $this->invoice_sync->is_synced( $order );
 		$order_id     = $order->get_id();
 
-		$dash = '&#8212;';
+		$has_vat_number = '' !== $this->get_order_vat_number( $order );
+		$invoice_type   = $order->get_meta( InvoiceSync::META_INVOICE_TYPE );
+		$dash           = '&#8212;';
 		?>
 		<div id="ihumbak-wca-meta-box" data-order-id="<?php echo esc_attr( (string) $order_id ); ?>">
 			<table class="widefat striped" style="border:0;">
@@ -122,6 +134,15 @@ class OrderMetaBox {
 						<td><strong><?php esc_html_e( 'Invoice No', 'ihumbak-woo-conta-api' ); ?></strong></td>
 						<td id="ihumbak-wca-invoice-no">
 							<?php echo $is_synced ? esc_html( (string) $invoice_no ) : wp_kses_post( $dash ); ?>
+						</td>
+					</tr>
+					<tr>
+						<td><strong><?php esc_html_e( 'Invoice Type', 'ihumbak-woo-conta-api' ); ?></strong></td>
+						<td id="ihumbak-wca-invoice-type">
+							<?php
+							$invoice_type_str = is_string( $invoice_type ) ? $invoice_type : '';
+							echo $is_synced && '' !== $invoice_type_str ? esc_html( $invoice_type_str ) : wp_kses_post( $dash );
+							?>
 						</td>
 					</tr>
 					<tr>
@@ -165,12 +186,20 @@ class OrderMetaBox {
 			<?php endif; ?>
 
 			<div style="margin-top:12px;">
-				<button type="button"
-					class="button button-primary"
-					id="ihumbak-wca-sync-order"
-					style="width:100%;margin-bottom:8px;">
-					<?php esc_html_e( 'Sync to Conta', 'ihumbak-woo-conta-api' ); ?>
-				</button>
+				<?php if ( ! $is_synced ) : ?>
+					<button type="button"
+						class="button <?php echo $has_vat_number ? 'button-primary' : ''; ?> ihumbak-wca-sync-order-btn"
+						data-invoice-type="NORMAL"
+						style="width:100%;margin-bottom:8px;">
+						<?php esc_html_e( 'Create Invoice', 'ihumbak-woo-conta-api' ); ?>
+					</button>
+					<button type="button"
+						class="button <?php echo $has_vat_number ? '' : 'button-primary'; ?> ihumbak-wca-sync-order-btn"
+						data-invoice-type="CASH"
+						style="width:100%;margin-bottom:8px;">
+						<?php esc_html_e( 'Create Cash Invoice', 'ihumbak-woo-conta-api' ); ?>
+					</button>
+				<?php endif; ?>
 
 				<?php if ( $is_synced && ! $payment_done ) : ?>
 					<button type="button"
@@ -193,14 +222,18 @@ class OrderMetaBox {
 
 				console.log('[WooConta Debug] Meta box loaded. Order ID:', orderId, 'Nonce:', nonce ? 'present' : 'MISSING', 'ajaxurl:', typeof ajaxurl !== 'undefined' ? ajaxurl : 'UNDEFINED');
 
-				$box.on('click', '#ihumbak-wca-sync-order', function(e) {
+				$box.on('click', '.ihumbak-wca-sync-order-btn', function(e) {
 					e.preventDefault();
 					var $btn = $(this);
-					$btn.prop('disabled', true).text('<?php echo esc_js( __( 'Syncing...', 'ihumbak-woo-conta-api' ) ); ?>');
+					var invoiceType = $btn.data('invoice-type');
+					var originalText = $btn.text();
+					$box.find('.ihumbak-wca-sync-order-btn').prop('disabled', true);
+					$btn.text('<?php echo esc_js( __( 'Syncing...', 'ihumbak-woo-conta-api' ) ); ?>');
 
 					var postData = {
 						action: 'ihumbak_wca_sync_order',
 						order_id: orderId,
+						invoice_type: invoiceType,
 						ihumbak_wca_nonce: nonce
 					};
 
@@ -217,9 +250,11 @@ class OrderMetaBox {
 								$box.find('#ihumbak-wca-sync-status').html(response.data.status_badge);
 								$box.find('#ihumbak-wca-invoice-id').text(response.data.invoice_id);
 								$box.find('#ihumbak-wca-invoice-no').text(response.data.invoice_no);
+								$box.find('#ihumbak-wca-invoice-type').text(response.data.invoice_type);
 								$box.find('#ihumbak-wca-customer-id').text(response.data.customer_id);
 								$box.find('#ihumbak-wca-sync-date').text(response.data.sync_date);
 								$box.find('#ihumbak-wca-error').remove();
+								$box.find('.ihumbak-wca-sync-order-btn').remove();
 								if (response.data.error) {
 									$box.find('table').after(
 										'<div id="ihumbak-wca-error" style="background:#fbeaea;border-left:4px solid #dc3232;padding:8px 12px;margin:12px 0;">' +
@@ -232,13 +267,15 @@ class OrderMetaBox {
 								var errorMsg = (response.data && response.data.message) ? response.data.message : (response.data || '<?php echo esc_js( __( 'Sync failed.', 'ihumbak-woo-conta-api' ) ); ?>');
 								console.error('[WooConta Debug] Sync error:', errorMsg);
 								alert(errorMsg);
+								$box.find('.ihumbak-wca-sync-order-btn').prop('disabled', false);
+								$btn.text(originalText);
 							}
-							$btn.prop('disabled', false).text('<?php echo esc_js( __( 'Sync to Conta', 'ihumbak-woo-conta-api' ) ); ?>');
 						},
 						error: function(xhr, status, error) {
 							console.error('[WooConta Debug] AJAX failed. Status:', status, 'Error:', error, 'Response:', xhr.responseText);
 							alert('AJAX Error: ' + status + ' - ' + error + '\n\nServer response:\n' + (xhr.responseText || 'empty').substring(0, 500));
-							$btn.prop('disabled', false).text('<?php echo esc_js( __( 'Sync to Conta', 'ihumbak-woo-conta-api' ) ); ?>');
+							$box.find('.ihumbak-wca-sync-order-btn').prop('disabled', false);
+							$btn.text(originalText);
 						}
 					});
 				});
@@ -312,10 +349,16 @@ class OrderMetaBox {
 			wp_send_json_error( __( 'Order not found.', 'ihumbak-woo-conta-api' ), 404 );
 		}
 
+		$invoice_type = isset( $_POST['invoice_type'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice_type'] ) ) : '';
+
+		if ( '' !== $invoice_type && ! in_array( $invoice_type, [ 'NORMAL', 'CASH' ], true ) ) {
+			wp_send_json_error( __( 'Invalid invoice type.', 'ihumbak-woo-conta-api' ), 400 );
+		}
+
 		error_log( '[WooConta Debug] Order loaded. Calling sync_order...' );
 
 		try {
-			$result = $this->invoice_sync->sync_order( $order );
+			$result = $this->invoice_sync->sync_order( $order, $invoice_type );
 		} catch ( \Throwable $e ) {
 			error_log( '[WooConta Debug] EXCEPTION in sync_order: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() );
 			error_log( '[WooConta Debug] Stack trace: ' . $e->getTraceAsString() );
@@ -343,6 +386,7 @@ class OrderMetaBox {
 				'status_badge' => $this->get_status_badge_html( $sync_status ),
 				'invoice_id'   => (string) $order->get_meta( InvoiceSync::META_INVOICE_ID ),
 				'invoice_no'   => (string) $order->get_meta( InvoiceSync::META_INVOICE_NO ),
+				'invoice_type' => (string) $order->get_meta( InvoiceSync::META_INVOICE_TYPE ),
 				'customer_id'  => (string) $order->get_meta( CustomerSync::META_CUSTOMER_ID ),
 				'sync_date'    => (string) $order->get_meta( InvoiceSync::META_SYNC_DATE ),
 				'error'        => is_string( $sync_error ) && '' !== $sync_error ? $sync_error : '',
@@ -410,6 +454,22 @@ class OrderMetaBox {
 		}
 
 		return null;
+	}
+
+	/**
+	 * Get the VAT number from the order based on the configured meta field.
+	 *
+	 * @param WC_Order $order WooCommerce order.
+	 * @return string VAT number or empty string.
+	 */
+	private function get_order_vat_number( WC_Order $order ): string {
+		$vat_field = $this->settings->get_vat_number_field();
+
+		if ( '' === $vat_field ) {
+			return '';
+		}
+
+		return (string) $order->get_meta( $vat_field );
 	}
 
 	/**
