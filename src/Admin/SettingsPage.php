@@ -127,6 +127,7 @@ class SettingsPage {
 		$current['invoice_trigger_status'] = get_option( 'ihumbak_wca_trigger_status', 'wc-processing' );
 		$current['delivery_method']        = get_option( 'ihumbak_wca_delivery_method', 'EMAIL' );
 		$current['auto_sync_enabled']      = 'yes' === get_option( 'ihumbak_wca_auto_sync', 'no' );
+		$current['vat_number_field']       = get_option( 'ihumbak_wca_vat_number_field', '' );
 
 		$current['vat_mapping'] = [
 			''             => get_option( 'ihumbak_wca_vat_standard', 'high' ),
@@ -338,6 +339,13 @@ class SettingsPage {
 					'MAIL'           => __( 'Postal Mail', 'ihumbak-woo-conta-api' ),
 				],
 				'default' => 'EMAIL',
+			],
+			[
+				'type'    => 'text',
+				'id'      => 'ihumbak_wca_vat_number_field',
+				'name'    => __( 'VAT Number Field', 'ihumbak-woo-conta-api' ),
+				'desc'    => __( 'WooCommerce order meta key that contains the customer VAT number (e.g. <code>_billing_vat_number</code>, <code>_vat_number</code>). Leave empty to skip.', 'ihumbak-woo-conta-api' ),
+				'default' => '',
 			],
 			[
 				'type'    => 'checkbox',

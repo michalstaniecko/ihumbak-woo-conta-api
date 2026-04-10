@@ -54,6 +54,7 @@ class Settings {
 			'invoice_trigger_status' => 'processing',
 			'delivery_method'        => 'EMAIL',
 			'auto_sync_enabled'      => false,
+			'vat_number_field'       => '',
 		];
 	}
 
@@ -77,6 +78,7 @@ class Settings {
 			'invoice_language'       => get_option( 'ihumbak_wca_invoice_language', '' ),
 			'invoice_trigger_status' => get_option( 'ihumbak_wca_trigger_status', '' ),
 			'delivery_method'        => get_option( 'ihumbak_wca_delivery_method', '' ),
+			'vat_number_field'       => get_option( 'ihumbak_wca_vat_number_field', '' ),
 		];
 
 		// Merge WC individual options over consolidated (non-empty values win).
@@ -181,6 +183,15 @@ class Settings {
 	 */
 	public function get_delivery_method(): string {
 		return (string) $this->get_all()['delivery_method'];
+	}
+
+	/**
+	 * Get the WooCommerce order meta key that stores the customer VAT number.
+	 *
+	 * @return string Meta key name, or empty string if not configured.
+	 */
+	public function get_vat_number_field(): string {
+		return (string) $this->get_all()['vat_number_field'];
 	}
 
 	/**

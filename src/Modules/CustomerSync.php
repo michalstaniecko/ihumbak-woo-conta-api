@@ -12,6 +12,7 @@ namespace Ihumbak\WooConta\Modules;
 use Ihumbak\WooConta\API\Endpoints\Customers;
 use Ihumbak\WooConta\API\Models\Customer;
 use Ihumbak\WooConta\Services\Logger;
+use Ihumbak\WooConta\Services\Settings;
 use WC_Order;
 use WP_Error;
 
@@ -42,6 +43,13 @@ class CustomerSync {
 	private Logger $logger;
 
 	/**
+	 * Settings service.
+	 *
+	 * @var Settings
+	 */
+	private Settings $settings;
+
+	/**
 	 * In-memory cache of email → customer ID lookups.
 	 *
 	 * @var array<string, int>
@@ -53,10 +61,12 @@ class CustomerSync {
 	 *
 	 * @param Customers $customers Customers API endpoint.
 	 * @param Logger    $logger    Logger service.
+	 * @param Settings  $settings  Settings service.
 	 */
-	public function __construct( Customers $customers, Logger $logger ) {
+	public function __construct( Customers $customers, Logger $logger, Settings $settings ) {
 		$this->customers = $customers;
 		$this->logger    = $logger;
+		$this->settings  = $settings;
 	}
 
 	/**
@@ -186,7 +196,7 @@ class CustomerSync {
 	 * @return int|WP_Error Conta customer ID on success, WP_Error on failure.
 	 */
 	public function create_from_order( WC_Order $order ): int|WP_Error {
-		$customer = Customer::from_wc_order( $order );
+		$customer = Customer::from_wc_order( $order, $this->settings->get_vat_number_field() );
 
 		$data = $customer->to_array();
 
@@ -239,7 +249,7 @@ class CustomerSync {
 	 * @return array<string, mixed>|WP_Error Updated customer data or WP_Error.
 	 */
 	public function update_from_order( WC_Order $order, int $customer_id ): array|WP_Error {
-		$customer = Customer::from_wc_order( $order );
+		$customer = Customer::from_wc_order( $order, $this->settings->get_vat_number_field() );
 
 		$data = $customer->to_array();
 

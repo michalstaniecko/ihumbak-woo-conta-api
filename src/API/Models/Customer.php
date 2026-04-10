@@ -171,10 +171,11 @@ class Customer {
 	/**
 	 * Create a Customer from a WooCommerce order's billing data.
 	 *
-	 * @param \WC_Order $order WooCommerce order instance.
+	 * @param \WC_Order $order            WooCommerce order instance.
+	 * @param string    $vat_number_field  Order meta key for VAT number (optional).
 	 * @return self
 	 */
-	public static function from_wc_order( \WC_Order $order ): self {
+	public static function from_wc_order( \WC_Order $order, string $vat_number_field = '' ): self {
 		$customer = new self();
 
 		$company = $order->get_billing_company();
@@ -196,6 +197,15 @@ class Customer {
 		$country_code               = $order->get_billing_country();
 		$countries                  = WC()->countries->get_countries();
 		$customer->address_country  = $countries[ $country_code ] ?? $country_code;
+
+		// Set VAT number from configured meta key.
+		if ( '' !== $vat_number_field ) {
+			$vat_number = (string) $order->get_meta( $vat_number_field );
+			if ( '' !== $vat_number ) {
+				$customer->org_no        = $vat_number;
+				$customer->customer_type = 'ORGANIZATION';
+			}
+		}
 
 		return $customer;
 	}
