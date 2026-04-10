@@ -64,6 +64,7 @@ class OrderMetaBox {
 		add_action( 'add_meta_boxes', [ $this, 'add_meta_box' ] );
 		add_action( 'wp_ajax_ihumbak_wca_sync_order', [ $this, 'ajax_sync_order' ] );
 		add_action( 'wp_ajax_ihumbak_wca_sync_payment', [ $this, 'ajax_sync_payment' ] );
+		add_action( 'wp_ajax_ihumbak_wca_manual_invoice', [ $this, 'ajax_manual_invoice' ] );
 	}
 
 	/**
@@ -109,6 +110,7 @@ class OrderMetaBox {
 		$sync_error   = $order->get_meta( InvoiceSync::META_SYNC_ERROR );
 		$payment_done = $this->payment_sync->is_payment_synced( $order );
 		$is_synced    = $this->invoice_sync->is_synced( $order );
+		$is_assigned  = $is_synced || 'manual' === $sync_status;
 		$order_id     = $order->get_id();
 
 		$has_vat_number = '' !== $this->get_order_vat_number( $order );
@@ -120,20 +122,20 @@ class OrderMetaBox {
 				<tbody>
 					<tr>
 						<td><strong><?php esc_html_e( 'Sync Status', 'ihumbak-woo-conta-api' ); ?></strong></td>
-						<td id="ihumbak-wca-sync-status">
+						<td id="ihumbak-wca-sync-status" data-status="<?php echo esc_attr( $sync_status ); ?>">
 							<?php $this->render_status_badge( $sync_status ); ?>
 						</td>
 					</tr>
 					<tr>
 						<td><strong><?php esc_html_e( 'Invoice ID', 'ihumbak-woo-conta-api' ); ?></strong></td>
 						<td id="ihumbak-wca-invoice-id">
-							<?php echo $is_synced ? esc_html( (string) $invoice_id ) : wp_kses_post( $dash ); ?>
+							<?php echo $is_assigned ? esc_html( (string) $invoice_id ) : wp_kses_post( $dash ); ?>
 						</td>
 					</tr>
 					<tr>
 						<td><strong><?php esc_html_e( 'Invoice No', 'ihumbak-woo-conta-api' ); ?></strong></td>
 						<td id="ihumbak-wca-invoice-no">
-							<?php echo $is_synced ? esc_html( (string) $invoice_no ) : wp_kses_post( $dash ); ?>
+							<?php echo $is_assigned ? esc_html( (string) $invoice_no ) : wp_kses_post( $dash ); ?>
 						</td>
 					</tr>
 					<tr>
@@ -141,7 +143,7 @@ class OrderMetaBox {
 						<td id="ihumbak-wca-invoice-type">
 							<?php
 							$invoice_type_str = is_string( $invoice_type ) ? $invoice_type : '';
-							echo $is_synced && '' !== $invoice_type_str ? esc_html( $invoice_type_str ) : wp_kses_post( $dash );
+							echo $is_assigned && '' !== $invoice_type_str ? esc_html( $invoice_type_str ) : wp_kses_post( $dash );
 							?>
 						</td>
 					</tr>
@@ -186,7 +188,7 @@ class OrderMetaBox {
 			<?php endif; ?>
 
 			<div style="margin-top:12px;">
-				<?php if ( ! $is_synced ) : ?>
+				<?php if ( ! $is_assigned ) : ?>
 					<button type="button"
 						class="button <?php echo $has_vat_number ? 'button-primary' : ''; ?> ihumbak-wca-sync-order-btn"
 						data-invoice-type="NORMAL"
@@ -201,7 +203,7 @@ class OrderMetaBox {
 					</button>
 				<?php endif; ?>
 
-				<?php if ( $is_synced && ! $payment_done ) : ?>
+				<?php if ( $is_assigned && ! $payment_done ) : ?>
 					<button type="button"
 						class="button"
 						id="ihumbak-wca-sync-payment"
@@ -209,6 +211,35 @@ class OrderMetaBox {
 						<?php esc_html_e( 'Sync Payment', 'ihumbak-woo-conta-api' ); ?>
 					</button>
 				<?php endif; ?>
+			</div>
+
+			<div id="ihumbak-wca-manual-assign" style="margin-top:12px;border-top:1px solid #ddd;padding-top:12px;">
+				<a href="#" id="ihumbak-wca-manual-toggle" style="text-decoration:none;">
+					<?php esc_html_e( 'Assign invoice manually', 'ihumbak-woo-conta-api' ); ?> &darr;
+				</a>
+				<div id="ihumbak-wca-manual-form" style="display:none;margin-top:8px;">
+					<p style="margin:0 0 6px;">
+						<label for="ihumbak-wca-manual-invoice-id" style="display:block;font-weight:600;margin-bottom:2px;">
+							<?php esc_html_e( 'Invoice ID', 'ihumbak-woo-conta-api' ); ?>
+						</label>
+						<input type="text" id="ihumbak-wca-manual-invoice-id" style="width:100%;"
+							placeholder="<?php esc_attr_e( 'Conta invoice ID', 'ihumbak-woo-conta-api' ); ?>" />
+					</p>
+					<p style="margin:0 0 8px;">
+						<label for="ihumbak-wca-manual-invoice-no" style="display:block;font-weight:600;margin-bottom:2px;">
+							<?php esc_html_e( 'Invoice No', 'ihumbak-woo-conta-api' ); ?>
+						</label>
+						<input type="text" id="ihumbak-wca-manual-invoice-no" style="width:100%;"
+							placeholder="<?php esc_attr_e( 'e.g. 10042', 'ihumbak-woo-conta-api' ); ?>" />
+					</p>
+					<button type="button" class="button button-primary" id="ihumbak-wca-manual-save"
+						style="width:100%;margin-bottom:4px;">
+						<?php esc_html_e( 'Save', 'ihumbak-woo-conta-api' ); ?>
+					</button>
+					<a href="#" id="ihumbak-wca-manual-cancel" style="display:block;text-align:center;margin-top:4px;">
+						<?php esc_html_e( 'Cancel', 'ihumbak-woo-conta-api' ); ?>
+					</a>
+				</div>
 			</div>
 
 			<?php wp_nonce_field( 'ihumbak_wca_meta_box', 'ihumbak_wca_nonce' ); ?>
@@ -276,6 +307,71 @@ class OrderMetaBox {
 							alert('AJAX Error: ' + status + ' - ' + error + '\n\nServer response:\n' + (xhr.responseText || 'empty').substring(0, 500));
 							$box.find('.ihumbak-wca-sync-order-btn').prop('disabled', false);
 							$btn.text(originalText);
+						}
+					});
+				});
+
+				$box.on('click', '#ihumbak-wca-manual-toggle', function(e) {
+					e.preventDefault();
+					$('#ihumbak-wca-manual-form').slideToggle(200);
+				});
+
+				$box.on('click', '#ihumbak-wca-manual-cancel', function(e) {
+					e.preventDefault();
+					$('#ihumbak-wca-manual-form').slideUp(200);
+				});
+
+				$box.on('click', '#ihumbak-wca-manual-save', function(e) {
+					e.preventDefault();
+					var invoiceId = $.trim($('#ihumbak-wca-manual-invoice-id').val());
+					var invoiceNo = $.trim($('#ihumbak-wca-manual-invoice-no').val());
+
+					if (!invoiceId && !invoiceNo) {
+						alert('<?php echo esc_js( __( 'Please enter at least an Invoice ID or Invoice Number.', 'ihumbak-woo-conta-api' ) ); ?>');
+						return;
+					}
+
+					var currentStatus = $box.find('#ihumbak-wca-sync-status').data('status');
+					if (currentStatus === 'synced') {
+						if (!confirm('<?php echo esc_js( __( 'This order is already synced via API. Overwriting will replace the existing invoice data. Continue?', 'ihumbak-woo-conta-api' ) ); ?>')) {
+							return;
+						}
+					}
+
+					var $btn = $(this);
+					$btn.prop('disabled', true).text('<?php echo esc_js( __( 'Saving...', 'ihumbak-woo-conta-api' ) ); ?>');
+
+					$.ajax({
+						url: ajaxurl,
+						type: 'POST',
+						data: {
+							action: 'ihumbak_wca_manual_invoice',
+							order_id: orderId,
+							invoice_id: invoiceId,
+							invoice_no: invoiceNo,
+							ihumbak_wca_nonce: nonce
+						},
+						dataType: 'json',
+						success: function(response) {
+							if (response.success) {
+								$box.find('#ihumbak-wca-sync-status').data('status', 'manual').html(response.data.status_badge);
+								$box.find('#ihumbak-wca-invoice-id').text(response.data.invoice_id || '\u2014');
+								$box.find('#ihumbak-wca-invoice-no').text(response.data.invoice_no || '\u2014');
+								$box.find('#ihumbak-wca-sync-date').text(response.data.sync_date);
+								$box.find('#ihumbak-wca-error').remove();
+								$box.find('.ihumbak-wca-sync-order-btn').remove();
+								$('#ihumbak-wca-manual-form').slideUp(200);
+								$('#ihumbak-wca-manual-invoice-id').val('');
+								$('#ihumbak-wca-manual-invoice-no').val('');
+							} else {
+								var errorMsg = (response.data && response.data.message) ? response.data.message : (response.data || '<?php echo esc_js( __( 'Save failed.', 'ihumbak-woo-conta-api' ) ); ?>');
+								alert(errorMsg);
+							}
+							$btn.prop('disabled', false).text('<?php echo esc_js( __( 'Save', 'ihumbak-woo-conta-api' ) ); ?>');
+						},
+						error: function(xhr, status, error) {
+							alert('AJAX Error: ' + status + ' - ' + error);
+							$btn.prop('disabled', false).text('<?php echo esc_js( __( 'Save', 'ihumbak-woo-conta-api' ) ); ?>');
 						}
 					});
 				});
@@ -433,6 +529,55 @@ class OrderMetaBox {
 	}
 
 	/**
+	 * AJAX handler for manually assigning invoice data to an order.
+	 *
+	 * @return void
+	 */
+	public function ajax_manual_invoice(): void {
+		check_ajax_referer( 'ihumbak_wca_meta_box', 'ihumbak_wca_nonce' );
+
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_send_json_error( __( 'Permission denied.', 'ihumbak-woo-conta-api' ), 403 );
+		}
+
+		$order_id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
+
+		if ( 0 === $order_id ) {
+			wp_send_json_error( __( 'Invalid order ID.', 'ihumbak-woo-conta-api' ), 400 );
+		}
+
+		$order = wc_get_order( $order_id );
+
+		if ( ! $order instanceof WC_Order ) {
+			wp_send_json_error( __( 'Order not found.', 'ihumbak-woo-conta-api' ), 404 );
+		}
+
+		$invoice_id = isset( $_POST['invoice_id'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice_id'] ) ) : '';
+		$invoice_no = isset( $_POST['invoice_no'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice_no'] ) ) : '';
+
+		if ( '' === $invoice_id && '' === $invoice_no ) {
+			wp_send_json_error( __( 'Please provide at least an Invoice ID or Invoice Number.', 'ihumbak-woo-conta-api' ) );
+		}
+
+		$order->update_meta_data( InvoiceSync::META_INVOICE_ID, $invoice_id );
+		$order->update_meta_data( InvoiceSync::META_INVOICE_NO, $invoice_no );
+
+		$order->update_meta_data( InvoiceSync::META_SYNC_STATUS, 'manual' );
+		$order->update_meta_data( InvoiceSync::META_SYNC_DATE, gmdate( 'c' ) );
+		$order->delete_meta_data( InvoiceSync::META_SYNC_ERROR );
+		$order->save();
+
+		wp_send_json_success(
+			[
+				'status_badge' => $this->get_status_badge_html( 'manual' ),
+				'invoice_id'   => $invoice_id,
+				'invoice_no'   => $invoice_no,
+				'sync_date'    => (string) $order->get_meta( InvoiceSync::META_SYNC_DATE ),
+			]
+		);
+	}
+
+	/**
 	 * Get a WC_Order from a post or order object.
 	 *
 	 * Handles both legacy (WP_Post) and HPOS (WC_Order) edit screens.
@@ -493,6 +638,8 @@ class OrderMetaBox {
 		switch ( $status ) {
 			case 'synced':
 				return '<span style="color:green;">' . esc_html__( 'Synced', 'ihumbak-woo-conta-api' ) . '</span>';
+			case 'manual':
+				return '<span style="color:#2271b1;">&#9998; ' . esc_html__( 'Manual', 'ihumbak-woo-conta-api' ) . '</span>';
 			case 'error':
 				return '<span style="color:red;">' . esc_html__( 'Error', 'ihumbak-woo-conta-api' ) . '</span>';
 			default:
