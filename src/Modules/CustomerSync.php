@@ -57,6 +57,13 @@ class CustomerSync {
 	private array $cache = [];
 
 	/**
+	 * In-memory cache of VAT number → customer ID lookups.
+	 *
+	 * @var array<string, int>
+	 */
+	private array $vat_cache = [];
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Customers $customers Customers API endpoint.
@@ -72,36 +79,46 @@ class CustomerSync {
 	/**
 	 * Sync a WooCommerce order's customer to Conta.
 	 *
-	 * Finds an existing Conta customer by email or creates a new one.
+	 * Finds an existing Conta customer by VAT number or email, creates a new one if not found.
+	 * Updates existing customer data if it has changed.
 	 *
 	 * @param WC_Order $order WooCommerce order.
 	 * @return int|WP_Error Conta customer ID on success, WP_Error on failure.
 	 */
 	public function sync_customer( WC_Order $order ): int|WP_Error {
-		// Check order meta for existing customer ID.
+		// Step 1: Check order meta for existing customer ID.
 		$existing_id = (int) $order->get_meta( self::META_CUSTOMER_ID );
 
 		if ( $existing_id > 0 ) {
-			// Verify customer still exists in Conta.
 			$result = $this->customers->get( $existing_id );
 
 			if ( ! is_wp_error( $result ) ) {
 				$this->logger->debug(
-					'Customer already synced',
+					'Customer already synced, checking for updates',
 					[
 						'order_id'    => $order->get_id(),
 						'customer_id' => $existing_id,
 					]
 				);
+				$this->maybe_update_customer( $order, $existing_id );
 				return $existing_id;
 			}
 
 			// Customer not found in Conta, clear stale meta.
+			$this->logger->info(
+				'Stored customer ID is stale, re-searching',
+				[
+					'order_id'    => $order->get_id(),
+					'customer_id' => $existing_id,
+				]
+			);
 			$order->delete_meta_data( self::META_CUSTOMER_ID );
 			$order->save();
 		}
 
-		$email = $order->get_billing_email();
+		// Step 2: Extract identifiers.
+		$email      = $order->get_billing_email();
+		$vat_number = $this->get_order_vat_number( $order );
 
 		if ( empty( $email ) ) {
 			return new WP_Error(
@@ -110,70 +127,153 @@ class CustomerSync {
 			);
 		}
 
-		// Check in-memory cache.
-		if ( isset( $this->cache[ $email ] ) ) {
-			$cached_id = $this->cache[ $email ];
-			$order->update_meta_data( self::META_CUSTOMER_ID, (string) $cached_id );
-			$order->save();
+		// Step 3: Check in-memory caches.
+		if ( '' !== $vat_number && isset( $this->vat_cache[ $vat_number ] ) ) {
+			$cached_id = $this->vat_cache[ $vat_number ];
+			$this->logger->debug(
+				'Customer found in VAT cache',
+				[
+					'vat_number'  => $vat_number,
+					'customer_id' => $cached_id,
+				]
+			);
+			$this->maybe_update_customer( $order, $cached_id );
+			$this->save_customer_meta( $order, $cached_id, $email, $vat_number );
 			return $cached_id;
 		}
 
-		// Search for existing customer in Conta.
+		if ( isset( $this->cache[ $email ] ) ) {
+			$cached_id = $this->cache[ $email ];
+			$this->logger->debug(
+				'Customer found in email cache',
+				[
+					'email'       => $email,
+					'customer_id' => $cached_id,
+				]
+			);
+			$this->maybe_update_customer( $order, $cached_id );
+			$this->save_customer_meta( $order, $cached_id, $email, $vat_number );
+			return $cached_id;
+		}
+
+		// Step 4: Search by VAT number (B2B customers).
+		if ( '' !== $vat_number ) {
+			$this->logger->info(
+				'Searching Conta customer by VAT number',
+				[
+					'order_id'   => $order->get_id(),
+					'vat_number' => $vat_number,
+				]
+			);
+
+			$found_id = $this->find_by_vat_number( $vat_number );
+
+			if ( is_wp_error( $found_id ) ) {
+				return $found_id;
+			}
+
+			if ( null !== $found_id ) {
+				$this->logger->info(
+					'Existing Conta customer matched by VAT number',
+					[
+						'order_id'    => $order->get_id(),
+						'customer_id' => $found_id,
+						'vat_number'  => $vat_number,
+					]
+				);
+				$this->maybe_update_customer( $order, $found_id );
+				$this->save_customer_meta( $order, $found_id, $email, $vat_number );
+				return $found_id;
+			}
+		}
+
+		// Step 5: Search by email.
+		$this->logger->info(
+			'Searching Conta customer by email',
+			[
+				'order_id' => $order->get_id(),
+				'email'    => $email,
+			]
+		);
+
 		$found_id = $this->find_by_email( $email );
 
-		if ( null !== $found_id ) {
-			$this->cache[ $email ] = $found_id;
-			$order->update_meta_data( self::META_CUSTOMER_ID, (string) $found_id );
-			$order->save();
+		if ( is_wp_error( $found_id ) ) {
+			return $found_id;
+		}
 
+		if ( null !== $found_id ) {
 			$this->logger->info(
-				'Existing Conta customer found',
+				'Existing Conta customer matched by email',
 				[
 					'order_id'    => $order->get_id(),
 					'customer_id' => $found_id,
 					'email'       => $email,
 				]
 			);
-
+			$this->maybe_update_customer( $order, $found_id );
+			$this->save_customer_meta( $order, $found_id, $email, $vat_number );
 			return $found_id;
 		}
 
-		// Create new customer.
+		// Step 6: Create new customer.
+		$this->logger->info(
+			'No existing customer found, creating new',
+			[ 'order_id' => $order->get_id() ]
+		);
+
 		$customer_id = $this->create_from_order( $order );
 
 		if ( is_wp_error( $customer_id ) ) {
 			return $customer_id;
 		}
 
-		$this->cache[ $email ] = $customer_id;
-		$order->update_meta_data( self::META_CUSTOMER_ID, (string) $customer_id );
-		$order->save();
+		$this->save_customer_meta( $order, $customer_id, $email, $vat_number );
 
 		return $customer_id;
+	}
+
+	/**
+	 * Save customer ID to order meta and populate caches.
+	 *
+	 * @param WC_Order $order       WooCommerce order.
+	 * @param int      $customer_id Conta customer ID.
+	 * @param string   $email       Customer email.
+	 * @param string   $vat_number  Customer VAT number (may be empty).
+	 */
+	private function save_customer_meta( WC_Order $order, int $customer_id, string $email, string $vat_number ): void {
+		$this->cache[ $email ] = $customer_id;
+
+		if ( '' !== $vat_number ) {
+			$this->vat_cache[ $vat_number ] = $customer_id;
+		}
+
+		$order->update_meta_data( self::META_CUSTOMER_ID, (string) $customer_id );
+		$order->save();
 	}
 
 	/**
 	 * Search for an existing Conta customer by email.
 	 *
 	 * @param string $email Customer email address.
-	 * @return int|null Conta customer ID or null if not found.
+	 * @return int|WP_Error|null Conta customer ID, null if not found, WP_Error on API failure.
 	 */
-	public function find_by_email( string $email ): ?int {
-		$result = $this->customers->search( $email, 1, 0 );
+	public function find_by_email( string $email ): int|WP_Error|null {
+		$result = $this->customers->search( $email, 10, 0 );
 
 		if ( is_wp_error( $result ) ) {
 			$this->logger->error(
-				'Customer search failed',
+				'Customer search by email failed',
 				[
 					'email' => $email,
 					'error' => $result->get_error_message(),
 				]
 			);
-			return null;
+			return $result;
 		}
 
-		// Conta returns results in a 'results' array.
-		$results = $result['results'] ?? [];
+		// Conta returns results in a 'hits' array.
+		$results = $result['hits'] ?? [];
 
 		if ( ! is_array( $results ) || 0 === count( $results ) ) {
 			return null;
@@ -187,6 +287,65 @@ class CustomerSync {
 		}
 
 		return null;
+	}
+
+	/**
+	 * Search for an existing Conta customer by VAT/organization number.
+	 *
+	 * @param string $vat_number VAT or organization number.
+	 * @return int|WP_Error|null Conta customer ID, null if not found, WP_Error on API failure.
+	 */
+	public function find_by_vat_number( string $vat_number ): int|WP_Error|null {
+		$result = $this->customers->search( $vat_number, 10, 0 );
+
+		if ( is_wp_error( $result ) ) {
+			$this->logger->error(
+				'Customer search by VAT number failed',
+				[
+					'vat_number' => $vat_number,
+					'error'      => $result->get_error_message(),
+				]
+			);
+			return $result;
+		}
+
+		$results = $result['hits'] ?? [];
+
+		if ( ! is_array( $results ) || 0 === count( $results ) ) {
+			return null;
+		}
+
+		$normalized_vat = $this->normalize_vat( $vat_number );
+
+		foreach ( $results as $customer ) {
+			if ( is_array( $customer ) && isset( $customer['orgNo'] ) && $this->normalize_vat( (string) $customer['orgNo'] ) === $normalized_vat ) {
+				$this->logger->debug(
+					'Customer matched by VAT number',
+					[
+						'vat_number'  => $vat_number,
+						'customer_id' => (int) $customer['id'],
+					]
+				);
+				return (int) $customer['id'];
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Normalize a VAT/organization number for comparison.
+	 *
+	 * Strips spaces, dashes, and Norwegian prefixes/suffixes (NO, MVA).
+	 *
+	 * @param string $value Raw VAT number.
+	 * @return string Digits-only normalized value.
+	 */
+	private function normalize_vat( string $value ): string {
+		$value = strtoupper( trim( $value ) );
+		$value = str_replace( [ ' ', '-', '.', 'NO', 'MVA' ], '', $value );
+
+		return preg_replace( '/[^0-9]/', '', $value );
 	}
 
 	/**
@@ -278,5 +437,106 @@ class CustomerSync {
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Update customer in Conta if order data differs from existing data.
+	 *
+	 * @param WC_Order $order       WooCommerce order.
+	 * @param int      $customer_id Conta customer ID.
+	 */
+	private function maybe_update_customer( WC_Order $order, int $customer_id ): void {
+		$existing = $this->customers->get( $customer_id );
+
+		if ( is_wp_error( $existing ) ) {
+			$this->logger->warning(
+				'Could not fetch customer for update check',
+				[
+					'customer_id' => $customer_id,
+					'error'       => $existing->get_error_message(),
+				]
+			);
+			return;
+		}
+
+		$customer = Customer::from_wc_order( $order, $this->settings->get_vat_number_field() );
+		$desired  = $customer->to_array();
+
+		/** This filter is documented in src/Modules/CustomerSync.php */
+		$desired = apply_filters( 'ihumbak_wca_customer_data', $desired, $order );
+
+		$changes = $this->detect_changes( $existing, $desired );
+
+		if ( empty( $changes ) ) {
+			$this->logger->debug(
+				'Customer data unchanged, skipping update',
+				[ 'customer_id' => $customer_id ]
+			);
+			return;
+		}
+
+		$this->logger->info(
+			'Customer data changed, updating in Conta',
+			[
+				'customer_id'    => $customer_id,
+				'changed_fields' => array_keys( $changes ),
+			]
+		);
+
+		$this->update_from_order( $order, $customer_id );
+	}
+
+	/**
+	 * Detect differences between existing Conta customer and desired data.
+	 *
+	 * @param array<string, mixed> $existing Conta API customer data.
+	 * @param array<string, mixed> $desired  Desired customer data from order.
+	 * @return array<string, array{old: string, new: string}> Changed fields.
+	 */
+	private function detect_changes( array $existing, array $desired ): array {
+		$compare_keys = [
+			'name',
+			'customerType',
+			'emailAddress',
+			'phoneNo',
+			'orgNo',
+			'customerAddressLine1',
+			'customerAddressLine2',
+			'customerAddressPostcode',
+			'customerAddressCity',
+			'customerAddressCountry',
+		];
+
+		$changes = [];
+
+		foreach ( $compare_keys as $key ) {
+			$old = (string) ( $existing[ $key ] ?? '' );
+			$new = (string) ( $desired[ $key ] ?? '' );
+
+			if ( $old !== $new ) {
+				$changes[ $key ] = [
+					'old' => $old,
+					'new' => $new,
+				];
+			}
+		}
+
+		return $changes;
+	}
+
+	/**
+	 * Extract VAT number from a WooCommerce order.
+	 *
+	 * @param WC_Order $order WooCommerce order.
+	 * @return string VAT number or empty string.
+	 */
+	private function get_order_vat_number( WC_Order $order ): string {
+		$vat_field = $this->settings->get_vat_number_field();
+
+		if ( '' === $vat_field ) {
+			return '';
+		}
+
+		return trim( (string) $order->get_meta( $vat_field ) );
 	}
 }
