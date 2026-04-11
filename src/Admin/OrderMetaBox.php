@@ -258,13 +258,22 @@ class OrderMetaBox {
 		</div>
 
 		<style>
-			#ihumbak-wca-customer-selection table { width:100%; border-collapse:collapse; font-size:12px; }
-			#ihumbak-wca-customer-selection th,
-			#ihumbak-wca-customer-selection td { padding:4px 6px; border-bottom:1px solid #ddd; text-align:left; vertical-align:top; }
-			#ihumbak-wca-customer-selection th { background:#f0f0f1; font-weight:600; }
-			#ihumbak-wca-customer-selection tr.ihumbak-wca-order-row { background:#eff7ff; }
-			#ihumbak-wca-customer-selection .ihumbak-wca-selection-actions { margin-top:8px; text-align:center; }
-			#ihumbak-wca-customer-selection .ihumbak-wca-selection-actions .button { margin:0 4px; }
+			#ihumbak-wca-customer-selection { font-size:12px; }
+			.ihumbak-wca-card {
+				border:1px solid #ddd; border-radius:4px; padding:8px 10px; margin-bottom:6px;
+				cursor:pointer; position:relative;
+			}
+			.ihumbak-wca-card:hover { border-color:#2271b1; }
+			.ihumbak-wca-card.ihumbak-wca-card--selected { border-color:#2271b1; background:#f0f7ff; }
+			.ihumbak-wca-card.ihumbak-wca-card--order { background:#f9f9f9; border-style:dashed; cursor:default; }
+			.ihumbak-wca-card label { display:flex; align-items:flex-start; gap:6px; cursor:pointer; margin:0; }
+			.ihumbak-wca-card input[type="radio"] { margin-top:2px; flex-shrink:0; }
+			.ihumbak-wca-card-body { flex:1; min-width:0; }
+			.ihumbak-wca-card-name { font-weight:600; word-break:break-word; }
+			.ihumbak-wca-card-detail { color:#646970; word-break:break-all; }
+			.ihumbak-wca-card-row { display:flex; gap:8px; flex-wrap:wrap; }
+			.ihumbak-wca-selection-actions { margin-top:8px; text-align:center; }
+			.ihumbak-wca-selection-actions .button { margin:0 4px; }
 		</style>
 
 		<script type="text/javascript">
@@ -344,45 +353,60 @@ class OrderMetaBox {
 					});
 				}
 
+				function buildCardDetail(items) {
+					var parts = [];
+					for (var i = 0; i < items.length; i++) {
+						if (items[i].val) {
+							parts.push('<span class="ihumbak-wca-card-detail">' + escHtml(items[i].val) + '</span>');
+						}
+					}
+					return parts.length ? '<div class="ihumbak-wca-card-row">' + parts.join('') + '</div>' : '';
+				}
+
 				function showCustomerSelection(customers, orderBilling, invoiceType) {
 					var $sel = $box.find('#ihumbak-wca-customer-selection');
 					var html = '<p style="font-weight:600;margin:0 0 8px;">'
 						+ '<?php echo esc_js( __( 'Multiple matching customers found. Please select:', 'ihumbak-woo-conta-api' ) ); ?>'
 						+ '</p>';
-					html += '<table>';
-					html += '<tr><th></th><th><?php echo esc_js( __( 'Name', 'ihumbak-woo-conta-api' ) ); ?></th>'
-						+ '<th><?php echo esc_js( __( 'Email', 'ihumbak-woo-conta-api' ) ); ?></th>'
-						+ '<th><?php echo esc_js( __( 'Org No', 'ihumbak-woo-conta-api' ) ); ?></th>'
-						+ '<th><?php echo esc_js( __( 'City', 'ihumbak-woo-conta-api' ) ); ?></th></tr>';
 
-					// Order billing row for comparison.
-					html += '<tr class="ihumbak-wca-order-row">';
-					html += '<td><em><?php echo esc_js( __( 'Order', 'ihumbak-woo-conta-api' ) ); ?></em></td>';
-					html += '<td>' + escHtml(orderBilling.company || orderBilling.name) + '</td>';
-					html += '<td>' + escHtml(orderBilling.email) + '</td>';
-					html += '<td>' + escHtml(orderBilling.vat) + '</td>';
-					html += '<td>' + escHtml(orderBilling.city) + '</td>';
-					html += '</tr>';
+					// Order billing card for comparison.
+					html += '<div class="ihumbak-wca-card ihumbak-wca-card--order">';
+					html += '<div class="ihumbak-wca-card-body">';
+					html += '<div class="ihumbak-wca-card-detail" style="font-style:italic;margin-bottom:2px;"><?php echo esc_js( __( 'Order billing data:', 'ihumbak-woo-conta-api' ) ); ?></div>';
+					html += '<div class="ihumbak-wca-card-name">' + escHtml(orderBilling.company || orderBilling.name) + '</div>';
+					html += buildCardDetail([
+						{val: orderBilling.email},
+						{val: orderBilling.vat ? 'Org: ' + orderBilling.vat : ''},
+						{val: orderBilling.city}
+					]);
+					html += '</div></div>';
 
-					// Customer rows with radio buttons.
+					// Customer cards with radio buttons.
 					for (var i = 0; i < customers.length; i++) {
 						var c = customers[i];
-						html += '<tr>';
-						html += '<td><input type="radio" name="ihumbak_wca_customer" value="' + c.id + '"' + (i === 0 ? ' checked' : '') + ' /></td>';
-						html += '<td>' + escHtml(c.name) + '</td>';
-						html += '<td>' + escHtml(c.email) + '</td>';
-						html += '<td>' + escHtml(c.orgNo) + '</td>';
-						html += '<td>' + escHtml(c.city) + '</td>';
-						html += '</tr>';
+						var checked = (i === 0) ? ' checked' : '';
+						var selectedClass = (i === 0) ? ' ihumbak-wca-card--selected' : '';
+						html += '<div class="ihumbak-wca-card' + selectedClass + '">';
+						html += '<label>';
+						html += '<input type="radio" name="ihumbak_wca_customer" value="' + c.id + '"' + checked + ' />';
+						html += '<div class="ihumbak-wca-card-body">';
+						html += '<div class="ihumbak-wca-card-name">' + escHtml(c.name) + ' <span class="ihumbak-wca-card-detail">#' + c.id + '</span></div>';
+						html += buildCardDetail([
+							{val: c.email},
+							{val: c.orgNo ? 'Org: ' + c.orgNo : ''},
+							{val: c.city}
+						]);
+						html += '</div></label></div>';
 					}
 
 					// "Create new customer" option.
-					html += '<tr>';
-					html += '<td><input type="radio" name="ihumbak_wca_customer" value="0" /></td>';
-					html += '<td colspan="4"><em><?php echo esc_js( __( 'Create new customer from order data', 'ihumbak-woo-conta-api' ) ); ?></em></td>';
-					html += '</tr>';
+					html += '<div class="ihumbak-wca-card">';
+					html += '<label>';
+					html += '<input type="radio" name="ihumbak_wca_customer" value="0" />';
+					html += '<div class="ihumbak-wca-card-body">';
+					html += '<div class="ihumbak-wca-card-name" style="font-style:italic;"><?php echo esc_js( __( 'Create new customer from order data', 'ihumbak-woo-conta-api' ) ); ?></div>';
+					html += '</div></label></div>';
 
-					html += '</table>';
 					html += '<div class="ihumbak-wca-selection-actions">';
 					html += '<button type="button" class="button button-primary" id="ihumbak-wca-use-selected">'
 						+ '<?php echo esc_js( __( 'Use Selected', 'ihumbak-woo-conta-api' ) ); ?></button>';
@@ -392,6 +416,12 @@ class OrderMetaBox {
 
 					$sel.html(html).data('invoice-type', invoiceType).slideDown(200);
 					$box.find('.ihumbak-wca-sync-order-btn').hide();
+
+					// Highlight selected card.
+					$sel.on('change', 'input[name="ihumbak_wca_customer"]', function() {
+						$sel.find('.ihumbak-wca-card').removeClass('ihumbak-wca-card--selected');
+						$(this).closest('.ihumbak-wca-card').addClass('ihumbak-wca-card--selected');
+					});
 				}
 
 				// Sync order button click — Phase 1: search for matching customers.
