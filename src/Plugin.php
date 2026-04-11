@@ -123,7 +123,7 @@ final class Plugin {
 			$settings_page = new SettingsPage( $this->settings, $this->logger, $this->vat_mapper );
 			$settings_page->init();
 
-			$order_meta_box = new OrderMetaBox( $invoice_sync, $payment_sync, $this->settings );
+			$order_meta_box = new OrderMetaBox( $invoice_sync, $payment_sync, $customer_sync, $this->settings );
 			$order_meta_box->register();
 		}
 	}

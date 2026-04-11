@@ -82,10 +82,32 @@ class CustomerSync {
 	 * Finds an existing Conta customer by VAT number or email, creates a new one if not found.
 	 * Updates existing customer data if it has changed.
 	 *
-	 * @param WC_Order $order WooCommerce order.
+	 * @param WC_Order $order                WooCommerce order.
+	 * @param int      $selected_customer_id Optional pre-selected Conta customer ID from admin UI.
+	 * @param bool     $force_create         Force-create a new customer, skipping search.
 	 * @return int|WP_Error Conta customer ID on success, WP_Error on failure.
 	 */
-	public function sync_customer( WC_Order $order ): int|WP_Error {
+	public function sync_customer( WC_Order $order, int $selected_customer_id = 0, bool $force_create = false ): int|WP_Error {
+		// Step 0: If force-creating, skip all search and go straight to creation.
+		if ( $force_create ) {
+			$this->logger->info(
+				'Force-creating new customer (admin selected "Create new")',
+				[ 'order_id' => $order->get_id() ]
+			);
+
+			$customer_id = $this->create_from_order( $order );
+
+			if ( is_wp_error( $customer_id ) ) {
+				return $customer_id;
+			}
+
+			$email      = $order->get_billing_email();
+			$vat_number = $this->get_order_vat_number( $order );
+			$this->save_customer_meta( $order, $customer_id, $email, $vat_number );
+
+			return $customer_id;
+		}
+
 		// Step 1: Check order meta for existing customer ID.
 		$existing_id = (int) $order->get_meta( self::META_CUSTOMER_ID );
 
@@ -114,6 +136,37 @@ class CustomerSync {
 			);
 			$order->delete_meta_data( self::META_CUSTOMER_ID );
 			$order->save();
+		}
+
+		// Step 1b: If a specific customer was selected via the admin UI, use it directly.
+		if ( $selected_customer_id > 0 ) {
+			$result = $this->customers->get( $selected_customer_id );
+
+			if ( is_wp_error( $result ) ) {
+				return new WP_Error(
+					'selected_customer_not_found',
+					sprintf(
+						/* translators: %d: Conta customer ID */
+						__( 'Selected customer ID %d not found in Conta.', 'ihumbak-woo-conta-api' ),
+						$selected_customer_id
+					)
+				);
+			}
+
+			$this->logger->info(
+				'Using manually selected customer',
+				[
+					'order_id'    => $order->get_id(),
+					'customer_id' => $selected_customer_id,
+				]
+			);
+
+			$email      = $order->get_billing_email();
+			$vat_number = $this->get_order_vat_number( $order );
+			$this->maybe_update_customer( $order, $selected_customer_id );
+			$this->save_customer_meta( $order, $selected_customer_id, $email, $vat_number );
+
+			return $selected_customer_id;
 		}
 
 		// Step 2: Extract identifiers.
@@ -530,7 +583,7 @@ class CustomerSync {
 	 * @param WC_Order $order WooCommerce order.
 	 * @return string VAT number or empty string.
 	 */
-	private function get_order_vat_number( WC_Order $order ): string {
+	public function get_order_vat_number( WC_Order $order ): string {
 		$vat_field = $this->settings->get_vat_number_field();
 
 		if ( '' === $vat_field ) {
@@ -538,5 +591,72 @@ class CustomerSync {
 		}
 
 		return trim( (string) $order->get_meta( $vat_field ) );
+	}
+
+	/**
+	 * Find all matching Conta customers for an order by VAT number and email.
+	 *
+	 * Searches by VAT number first (if present), then by email, deduplicates by
+	 * customer ID, and returns the full customer arrays for the selection UI.
+	 *
+	 * @param WC_Order $order WooCommerce order.
+	 * @return array<int, array<string, mixed>>|WP_Error Array of customer arrays keyed by ID, or WP_Error on API failure.
+	 */
+	public function find_all_matches( WC_Order $order ): array|WP_Error {
+		$email      = $order->get_billing_email();
+		$vat_number = $this->get_order_vat_number( $order );
+		$matches    = [];
+
+		// Search by VAT number for B2B customers.
+		if ( '' !== $vat_number ) {
+			$result = $this->customers->search( $vat_number, 10, 0 );
+
+			if ( is_wp_error( $result ) ) {
+				return $result;
+			}
+
+			$normalized_vat = $this->normalize_vat( $vat_number );
+			$hits           = $result['hits'] ?? [];
+
+			if ( is_array( $hits ) ) {
+				foreach ( $hits as $customer ) {
+					if ( is_array( $customer ) && isset( $customer['orgNo'] ) && $this->normalize_vat( (string) $customer['orgNo'] ) === $normalized_vat ) {
+						$matches[ (int) $customer['id'] ] = $customer;
+					}
+				}
+			}
+		}
+
+		// Search by email.
+		if ( '' !== $email ) {
+			$result = $this->customers->search( $email, 10, 0 );
+
+			if ( is_wp_error( $result ) ) {
+				return $result;
+			}
+
+			$hits = $result['hits'] ?? [];
+
+			if ( is_array( $hits ) ) {
+				foreach ( $hits as $customer ) {
+					if ( is_array( $customer ) && isset( $customer['emailAddress'] ) && strtolower( (string) $customer['emailAddress'] ) === strtolower( $email ) ) {
+						$customer_id = (int) $customer['id'];
+						if ( ! isset( $matches[ $customer_id ] ) ) {
+							$matches[ $customer_id ] = $customer;
+						}
+					}
+				}
+			}
+		}
+
+		$this->logger->debug(
+			'Customer search found matches',
+			[
+				'order_id' => $order->get_id(),
+				'count'    => count( $matches ),
+			]
+		);
+
+		return array_values( $matches );
 	}
 }

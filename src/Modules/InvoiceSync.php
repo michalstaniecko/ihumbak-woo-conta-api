@@ -146,11 +146,13 @@ class InvoiceSync {
 	 * If the order is already synced, returns the existing invoice data from Conta.
 	 * Otherwise, syncs the customer, builds the invoice, and creates it via the API.
 	 *
-	 * @param WC_Order $order        WooCommerce order.
-	 * @param string   $invoice_type Invoice type: 'NORMAL', 'CASH', or '' for auto-detect.
+	 * @param WC_Order $order                 WooCommerce order.
+	 * @param string   $invoice_type          Invoice type: 'NORMAL', 'CASH', or '' for auto-detect.
+	 * @param int      $selected_customer_id  Optional pre-selected Conta customer ID from admin UI.
+	 * @param bool     $force_create_customer Force-create a new customer, skipping search.
 	 * @return array<string, mixed>|WP_Error Invoice data on success, WP_Error on failure.
 	 */
-	public function sync_order( WC_Order $order, string $invoice_type = '' ): array|WP_Error {
+	public function sync_order( WC_Order $order, string $invoice_type = '', int $selected_customer_id = 0, bool $force_create_customer = false ): array|WP_Error {
 		// If already synced, return existing invoice data from Conta.
 		if ( $this->is_synced( $order ) ) {
 			$invoice_id = (int) $order->get_meta( self::META_INVOICE_ID );
@@ -167,7 +169,7 @@ class InvoiceSync {
 		}
 
 		// Sync customer first.
-		$customer_id = $this->customer_sync->sync_customer( $order );
+		$customer_id = $this->customer_sync->sync_customer( $order, $selected_customer_id, $force_create_customer );
 
 		if ( is_wp_error( $customer_id ) ) {
 			$this->store_sync_error( $order, $customer_id->get_error_message() );
