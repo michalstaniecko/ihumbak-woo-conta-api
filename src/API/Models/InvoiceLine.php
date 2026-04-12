@@ -93,26 +93,33 @@ class InvoiceLine {
 	 * @param \WC_Order_Item_Product $item       WooCommerce order item.
 	 * @param int                    $line_no    Line number on the invoice.
 	 * @param VatMapper              $vat_mapper VAT code mapping service.
+	 * @param \WC_Order              $order      Parent order (used for refund adjustments).
 	 * @return self
 	 */
-	public static function from_wc_item( \WC_Order_Item_Product $item, int $line_no, VatMapper $vat_mapper ): self {
+	public static function from_wc_item( \WC_Order_Item_Product $item, int $line_no, VatMapper $vat_mapper, \WC_Order $order ): self {
 		$line              = new self();
 		$line->description = $item->get_name();
 		$line->line_no     = $line_no;
 
-		$quantity       = (float) $item->get_quantity();
-		$line->quantity = $quantity;
+		$original_qty = (float) $item->get_quantity();
+		$refunded_qty = (float) abs( $order->get_qty_refunded_for_item( $item->get_id() ) );
+		$net_qty      = $original_qty - $refunded_qty;
+
+		$line->quantity = $net_qty;
 
 		$subtotal    = (float) $item->get_subtotal();
-		$line->price = ( $quantity > 0 ) ? $subtotal / $quantity : 0.0;
+		$line->price = ( $original_qty > 0 ) ? $subtotal / $original_qty : 0.0;
 
 		$tax_class      = $item->get_tax_class();
 		$line->vat_code = $vat_mapper->get_conta_vat_code( $tax_class );
 
-		// Calculate discount from subtotal vs total (both ex. tax).
-		$total = (float) $item->get_total();
-		if ( $subtotal > 0 && $total < $subtotal ) {
-			$line->discount = round( ( ( $subtotal - $total ) / $subtotal ) * 100, 2 );
+		// Calculate discount from subtotal vs total (both ex. tax), adjusted for refunds.
+		$refunded_amount = (float) $order->get_total_refunded_for_item( $item->get_id() );
+		$net_total       = (float) $item->get_total() - $refunded_amount;
+		$net_subtotal    = $line->price * $net_qty;
+
+		if ( $net_subtotal > 0 && $net_total < $net_subtotal ) {
+			$line->discount = round( ( ( $net_subtotal - $net_total ) / $net_subtotal ) * 100, 2 );
 		}
 
 		return $line;
@@ -121,17 +128,31 @@ class InvoiceLine {
 	/**
 	 * Create an InvoiceLine from a WooCommerce shipping item.
 	 *
-	 * @param \WC_Order_Item_Shipping $shipping WooCommerce shipping item.
-	 * @param int                     $line_no  Line number on the invoice.
+	 * @param \WC_Order_Item_Shipping $shipping   WooCommerce shipping item.
+	 * @param int                     $line_no    Line number on the invoice.
+	 * @param VatMapper               $vat_mapper VAT code mapping service.
 	 * @return self
 	 */
-	public static function from_shipping( \WC_Order_Item_Shipping $shipping, int $line_no ): self {
+	public static function from_shipping( \WC_Order_Item_Shipping $shipping, int $line_no, VatMapper $vat_mapper ): self {
 		$line              = new self();
 		$line->description = 'Shipping: ' . $shipping->get_method_title();
 		$line->price       = (float) $shipping->get_total();
 		$line->quantity    = 1.0;
-		$line->vat_code    = 'high';
 		$line->line_no     = $line_no;
+
+		$tax_class = $shipping->get_tax_class();
+
+		/**
+		 * Filter the VAT code used for shipping invoice lines.
+		 *
+		 * @param string                 $vat_code The resolved Conta VAT code.
+		 * @param \WC_Order_Item_Shipping $shipping The WooCommerce shipping item.
+		 */
+		$line->vat_code = (string) apply_filters(
+			'ihumbak_wca_shipping_vat_code',
+			$vat_mapper->get_conta_vat_code( $tax_class ),
+			$shipping
+		);
 
 		return $line;
 	}

@@ -402,7 +402,15 @@ class Invoice {
 				continue;
 			}
 
-			$line = InvoiceLine::from_wc_item( $item, $line_no, $vat_mapper );
+			// Skip items fully refunded before invoice generation.
+			$refunded_qty = (float) abs( $order->get_qty_refunded_for_item( $item->get_id() ) );
+			$net_qty      = (float) $item->get_quantity() - $refunded_qty;
+
+			if ( $net_qty <= 0 ) {
+				continue;
+			}
+
+			$line = InvoiceLine::from_wc_item( $item, $line_no, $vat_mapper, $order );
 
 			if ( $line->discount > 0 ) {
 				$has_discount = true;
@@ -422,7 +430,7 @@ class Invoice {
 				continue;
 			}
 
-			$invoice_lines[] = InvoiceLine::from_shipping( $shipping, $line_no );
+			$invoice_lines[] = InvoiceLine::from_shipping( $shipping, $line_no, $vat_mapper );
 			++$line_no;
 		}
 
