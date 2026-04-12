@@ -349,8 +349,21 @@ class Invoice {
 		$invoice->invoice_currency = $order->get_currency();
 		$invoice->invoice_language = $settings->get_invoice_language();
 
-		// Customer reference.
-		$invoice->customer_reference = (string) $order->get_order_number();
+		// Customer reference: #order, Payment method (transaction_id).
+		$ref = '#' . $order->get_order_number();
+
+		$payment_method = (string) $order->get_payment_method_title();
+		$transaction_id = (string) $order->get_transaction_id();
+
+		if ( '' !== $payment_method && '' !== $transaction_id ) {
+			$ref .= ', ' . $payment_method . ' (' . $transaction_id . ')';
+		} elseif ( '' !== $payment_method ) {
+			$ref .= ', ' . $payment_method;
+		} elseif ( '' !== $transaction_id ) {
+			$ref .= ', ' . $transaction_id;
+		}
+
+		$invoice->customer_reference = substr( $ref, 0, 100 );
 
 		// Organization reference — store name displayed on the invoice PDF.
 		$org_reference = (string) get_bloginfo( 'name' );
