@@ -88,6 +88,13 @@ class Invoice {
 	public string $customer_reference = '';
 
 	/**
+	 * Organization reference displayed on the invoice PDF.
+	 *
+	 * @var string
+	 */
+	public string $org_reference = '';
+
+	/**
 	 * Personal message on the invoice.
 	 *
 	 * @var string
@@ -210,6 +217,10 @@ class Invoice {
 			$data['customerReference'] = $this->customer_reference;
 		}
 
+		if ( '' !== $this->org_reference ) {
+			$data['orgReference'] = $this->org_reference;
+		}
+
 		if ( '' !== $this->personal_message ) {
 			$data['personalMessage'] = $this->personal_message;
 		}
@@ -268,6 +279,7 @@ class Invoice {
 		$invoice->invoice_language   = (string) ( $data['invoiceLanguage'] ?? 'NO' );
 		$invoice->invoice_currency   = (string) ( $data['invoiceCurrency'] ?? 'NOK' );
 		$invoice->customer_reference = (string) ( $data['customerReference'] ?? '' );
+		$invoice->org_reference      = (string) ( $data['orgReference'] ?? '' );
 		$invoice->personal_message   = (string) ( $data['personalMessage'] ?? '' );
 		$invoice->delivery_address   = (string) ( $data['deliveryAddress'] ?? '' );
 		$invoice->delivery_postcode  = (string) ( $data['deliveryPostcode'] ?? '' );
@@ -339,6 +351,23 @@ class Invoice {
 
 		// Customer reference.
 		$invoice->customer_reference = (string) $order->get_order_number();
+
+		// Organization reference — store name displayed on the invoice PDF.
+		$org_reference = (string) get_bloginfo( 'name' );
+
+		/**
+		 * Filter the organization reference on the Conta invoice.
+		 *
+		 * @since 1.7.0
+		 *
+		 * @param string    $org_reference Organization reference (default: store name).
+		 * @param \WC_Order $order         WooCommerce order.
+		 */
+		$org_reference = (string) apply_filters( 'ihumbak_wca_org_reference', $org_reference, $order );
+
+		if ( '' !== $org_reference ) {
+			$invoice->org_reference = substr( $org_reference, 0, 100 );
+		}
 
 		// Personal message — rendered from template in settings.
 		$template = $settings->get_personal_message_template();
