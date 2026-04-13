@@ -128,6 +128,10 @@ class OrderMetaBox {
 		$dash           = '&#8212;';
 		?>
 		<div id="ihumbak-wca-meta-box" data-order-id="<?php echo esc_attr( (string) $order_id ); ?>">
+			<div id="ihumbak-wca-sync-overlay">
+				<span class="spinner"></span>
+				<span class="ihumbak-wca-sync-message"></span>
+			</div>
 			<table class="widefat striped" style="border:0;">
 				<tbody>
 					<tr>
@@ -274,6 +278,21 @@ class OrderMetaBox {
 			.ihumbak-wca-card-row { display:flex; gap:8px; flex-wrap:wrap; }
 			.ihumbak-wca-selection-actions { margin-top:8px; text-align:center; }
 			.ihumbak-wca-selection-actions .button { margin:0 4px; }
+			#ihumbak-wca-meta-box { position: relative; }
+			#ihumbak-wca-sync-overlay {
+				display: none;
+				position: absolute;
+				top: 0; left: 0; right: 0; bottom: 0;
+				background: rgba(255, 255, 255, 0.7);
+				z-index: 10;
+				align-items: center;
+				justify-content: center;
+				flex-direction: column;
+				gap: 8px;
+			}
+			#ihumbak-wca-sync-overlay.active { display: flex; }
+			#ihumbak-wca-sync-overlay .spinner { visibility: visible; float: none; margin: 0; }
+			.ihumbak-wca-sync-message { font-weight: 600; color: #2271b1; font-size: 13px; }
 		</style>
 
 		<script type="text/javascript">
@@ -287,10 +306,33 @@ class OrderMetaBox {
 					return $('<span>').text(str).html();
 				}
 
+				var syncInFlight = false;
+
+				function beforeUnloadHandler(e) {
+					e.preventDefault();
+					e.returnValue = '';
+				}
+
+				function showSyncOverlay(message) {
+					syncInFlight = true;
+					$box.find('#ihumbak-wca-sync-overlay .ihumbak-wca-sync-message').text(message);
+					$box.find('#ihumbak-wca-sync-overlay').addClass('active');
+					$box.find('button, input, select, a').not('#ihumbak-wca-sync-overlay *').prop('disabled', true).css('pointer-events', 'none');
+					window.addEventListener('beforeunload', beforeUnloadHandler);
+				}
+
+				function hideSyncOverlay() {
+					syncInFlight = false;
+					$box.find('#ihumbak-wca-sync-overlay').removeClass('active');
+					$box.find('button, input, select, a').prop('disabled', false).css('pointer-events', '');
+					window.removeEventListener('beforeunload', beforeUnloadHandler);
+				}
+
 				function doSyncOrder(invoiceType, selectedCustomerId, forceCreate) {
-					$box.find('.ihumbak-wca-sync-order-btn').prop('disabled', true);
-					$box.find('.ihumbak-wca-sync-order-btn[data-invoice-type="' + invoiceType + '"]')
-						.text('<?php echo esc_js( __( 'Syncing...', 'ihumbak-woo-conta-api' ) ); ?>');
+					var syncMsg = (invoiceType === 'CASH')
+						? '<?php echo esc_js( __( 'Creating cash invoice...', 'ihumbak-woo-conta-api' ) ); ?>'
+						: '<?php echo esc_js( __( 'Creating invoice...', 'ihumbak-woo-conta-api' ) ); ?>';
+					showSyncOverlay(syncMsg);
 
 					var postData = {
 						action: 'ihumbak_wca_sync_order',
@@ -312,6 +354,7 @@ class OrderMetaBox {
 						data: postData,
 						dataType: 'json',
 						success: function(response) {
+							hideSyncOverlay();
 							if (response.success) {
 								$box.find('#ihumbak-wca-sync-status').html(response.data.status_badge);
 								$box.find('#ihumbak-wca-invoice-id').text(response.data.invoice_id);
@@ -333,22 +376,11 @@ class OrderMetaBox {
 							} else {
 								var errorMsg = (response.data && response.data.message) ? response.data.message : (response.data || '<?php echo esc_js( __( 'Sync failed.', 'ihumbak-woo-conta-api' ) ); ?>');
 								alert(errorMsg);
-								$box.find('.ihumbak-wca-sync-order-btn').show().prop('disabled', false).each(function() {
-									var type = $(this).data('invoice-type');
-									$(this).text(type === 'NORMAL'
-										? '<?php echo esc_js( __( 'Create Invoice', 'ihumbak-woo-conta-api' ) ); ?>'
-										: '<?php echo esc_js( __( 'Create Cash Invoice', 'ihumbak-woo-conta-api' ) ); ?>');
-								});
 							}
 						},
 						error: function(xhr, status, error) {
+							hideSyncOverlay();
 							alert('<?php echo esc_js( __( 'AJAX Error:', 'ihumbak-woo-conta-api' ) ); ?> ' + status + ' - ' + error);
-							$box.find('.ihumbak-wca-sync-order-btn').show().prop('disabled', false).each(function() {
-								var type = $(this).data('invoice-type');
-								$(this).text(type === 'NORMAL'
-									? '<?php echo esc_js( __( 'Create Invoice', 'ihumbak-woo-conta-api' ) ); ?>'
-									: '<?php echo esc_js( __( 'Create Cash Invoice', 'ihumbak-woo-conta-api' ) ); ?>');
-							});
 						}
 					});
 				}
@@ -427,11 +459,9 @@ class OrderMetaBox {
 				// Sync order button click — Phase 1: search for matching customers.
 				$box.on('click', '.ihumbak-wca-sync-order-btn', function(e) {
 					e.preventDefault();
-					var $btn = $(this);
-					var invoiceType = $btn.data('invoice-type');
-					var originalText = $btn.text();
-					$box.find('.ihumbak-wca-sync-order-btn').prop('disabled', true);
-					$btn.text('<?php echo esc_js( __( 'Searching customers...', 'ihumbak-woo-conta-api' ) ); ?>');
+					if (syncInFlight) return;
+					var invoiceType = $(this).data('invoice-type');
+					showSyncOverlay('<?php echo esc_js( __( 'Searching customers...', 'ihumbak-woo-conta-api' ) ); ?>');
 
 					$.ajax({
 						url: ajaxurl,
@@ -444,29 +474,27 @@ class OrderMetaBox {
 						dataType: 'json',
 						success: function(response) {
 							if (!response.success) {
+								hideSyncOverlay();
 								alert(response.data || '<?php echo esc_js( __( 'Customer search failed.', 'ihumbak-woo-conta-api' ) ); ?>');
-								$box.find('.ihumbak-wca-sync-order-btn').prop('disabled', false);
-								$btn.text(originalText);
 								return;
 							}
 
 							var count = response.data.count;
 
 							if (count <= 1) {
-								// 0 or 1 match: proceed directly.
+								// 0 or 1 match: proceed directly (overlay stays active, doSyncOrder updates message).
 								var selectedId = (count === 1) ? response.data.customers[0].id : 0;
 								doSyncOrder(invoiceType, selectedId, false);
 								return;
 							}
 
-							// Multiple matches: show selection UI.
-							$box.find('.ihumbak-wca-sync-order-btn').prop('disabled', false);
+							// Multiple matches: hide overlay and show selection UI.
+							hideSyncOverlay();
 							showCustomerSelection(response.data.customers, response.data.order_billing, invoiceType);
 						},
 						error: function(xhr, status, error) {
+							hideSyncOverlay();
 							alert('<?php echo esc_js( __( 'AJAX Error:', 'ihumbak-woo-conta-api' ) ); ?> ' + status + ' - ' + error);
-							$box.find('.ihumbak-wca-sync-order-btn').prop('disabled', false);
-							$btn.text(originalText);
 						}
 					});
 				});
@@ -517,8 +545,8 @@ class OrderMetaBox {
 						}
 					}
 
-					var $btn = $(this);
-					$btn.prop('disabled', true).text('<?php echo esc_js( __( 'Saving...', 'ihumbak-woo-conta-api' ) ); ?>');
+					if (syncInFlight) return;
+					showSyncOverlay('<?php echo esc_js( __( 'Saving invoice assignment...', 'ihumbak-woo-conta-api' ) ); ?>');
 
 					$.ajax({
 						url: ajaxurl,
@@ -532,6 +560,7 @@ class OrderMetaBox {
 						},
 						dataType: 'json',
 						success: function(response) {
+							hideSyncOverlay();
 							if (response.success) {
 								$box.find('#ihumbak-wca-sync-status').data('status', 'manual').html(response.data.status_badge);
 								$box.find('#ihumbak-wca-invoice-id').text(response.data.invoice_id || '\u2014');
@@ -546,19 +575,19 @@ class OrderMetaBox {
 								var errorMsg = (response.data && response.data.message) ? response.data.message : (response.data || '<?php echo esc_js( __( 'Save failed.', 'ihumbak-woo-conta-api' ) ); ?>');
 								alert(errorMsg);
 							}
-							$btn.prop('disabled', false).text('<?php echo esc_js( __( 'Save', 'ihumbak-woo-conta-api' ) ); ?>');
 						},
 						error: function(xhr, status, error) {
+							hideSyncOverlay();
 							alert('AJAX Error: ' + status + ' - ' + error);
-							$btn.prop('disabled', false).text('<?php echo esc_js( __( 'Save', 'ihumbak-woo-conta-api' ) ); ?>');
 						}
 					});
 				});
 
 				$box.on('click', '#ihumbak-wca-sync-payment', function(e) {
 					e.preventDefault();
+					if (syncInFlight) return;
 					var $btn = $(this);
-					$btn.prop('disabled', true).text('<?php echo esc_js( __( 'Syncing...', 'ihumbak-woo-conta-api' ) ); ?>');
+					showSyncOverlay('<?php echo esc_js( __( 'Syncing payment...', 'ihumbak-woo-conta-api' ) ); ?>');
 
 					$.ajax({
 						url: ajaxurl,
@@ -570,6 +599,7 @@ class OrderMetaBox {
 						},
 						dataType: 'json',
 						success: function(response) {
+							hideSyncOverlay();
 							console.log('[WooConta Debug] Payment response:', response);
 							if (response.success) {
 								$box.find('#ihumbak-wca-payment-status').html(
@@ -578,13 +608,12 @@ class OrderMetaBox {
 								$btn.remove();
 							} else {
 								alert(response.data || '<?php echo esc_js( __( 'Payment sync failed.', 'ihumbak-woo-conta-api' ) ); ?>');
-								$btn.prop('disabled', false).text('<?php echo esc_js( __( 'Sync Payment', 'ihumbak-woo-conta-api' ) ); ?>');
 							}
 						},
 						error: function(xhr, status, error) {
+							hideSyncOverlay();
 							console.error('[WooConta Debug] Payment AJAX failed:', status, error, xhr.responseText);
 							alert('AJAX Error: ' + status + ' - ' + error + '\n\nServer response:\n' + (xhr.responseText || 'empty').substring(0, 500));
-							$btn.prop('disabled', false).text('<?php echo esc_js( __( 'Sync Payment', 'ihumbak-woo-conta-api' ) ); ?>');
 						}
 					});
 				});
