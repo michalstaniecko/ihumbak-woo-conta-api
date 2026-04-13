@@ -25,8 +25,8 @@ src/
     Endpoints/                   # AbstractEndpoint + Customers, Invoices, Payments, Products, Organizations
     Models/                      # Customer, Invoice, InvoiceLine, Payment (from_wc_order() + to_array())
   Modules/
-    CustomerSync.php             # Find-or-create customer by email, in-memory cache
-    InvoiceSync.php              # Order → invoice creation, credit notes, meta tracking
+    CustomerSync.php             # Find-or-create customer (email + VAT lookup), dedup with selection UI
+    InvoiceSync.php              # Order → invoice creation (regular/cash), credit notes, meta tracking
     PaymentSync.php              # Payment registration, foreign currency support
     OrderHooks.php               # WC status hooks, Action Scheduler, bulk actions
     Updates/UpdateService.php    # GitHub auto-updates (PUC library)
@@ -36,7 +36,7 @@ src/
     VatMapper.php                # WC tax class → Conta VAT code mapping
   Admin/
     SettingsPage.php             # WooCommerce settings tab "Conta Integration"
-    OrderMetaBox.php             # Order edit screen meta box with manual sync
+    OrderMetaBox.php             # Order meta box: sync actions, manual invoice number, customer selection
 assets/css/admin.css
 assets/js/admin.js
 uninstall.php                    # Cleanup on plugin removal
@@ -47,6 +47,9 @@ Key patterns:
 - Models use `from_wc_order()` factory + `to_array()` for API serialization
 - All API responses return `array|WP_Error`
 - Async processing via Action Scheduler (group: `ihumbak-woo-conta-api`), fallback to `do_action()`
+- Invoice type split: orders with VAT number → Regular Invoice (`INVOICE`), without → Cash Invoice (`CASH_INVOICE`)
+- Customer deduplication: search by email + VAT number, admin UI for selecting among multiple matches
+- Invoice model includes `orgReference` and `customerReference` (order number, payment method, transaction ID)
 
 ## Order Meta Keys
 
@@ -57,6 +60,7 @@ Key patterns:
 | `_ihumbak_wca_sync_status` | InvoiceSync | `synced` / `error` |
 | `_ihumbak_wca_sync_date` | InvoiceSync | ISO 8601 timestamp |
 | `_ihumbak_wca_sync_error` | InvoiceSync | Error message (deleted on success) |
+| `_ihumbak_wca_invoice_type` | InvoiceSync | `INVOICE` or `CASH_INVOICE` |
 | `_ihumbak_wca_customer_id` | CustomerSync | Conta customer ID |
 | `_ihumbak_wca_payment_synced` | PaymentSync | `1` if payment registered |
 
@@ -65,7 +69,9 @@ Key patterns:
 Consolidated option: `ihumbak_wca_settings`. Individual WC options:
 - `ihumbak_wca_api_key`, `ihumbak_wca_environment` (sandbox/production), `ihumbak_wca_organization_id`
 - `ihumbak_wca_invoice_language` (NO/EN), `ihumbak_wca_trigger_status`, `ihumbak_wca_delivery_method`
-- `ihumbak_wca_auto_sync` (yes/no), `ihumbak_wca_vat_standard`, `ihumbak_wca_vat_reduced_rate`, `ihumbak_wca_vat_zero_rate`
+- `ihumbak_wca_vat_number_field` (custom field key for customer VAT number)
+- `ihumbak_wca_personal_message_template` (invoice personal message with `{placeholders}`)
+- `ihumbak_wca_auto_sync` (yes/no — disabled by default), `ihumbak_wca_vat_standard`, `ihumbak_wca_vat_reduced_rate`, `ihumbak_wca_vat_zero_rate`
 
 ## Custom Hooks
 
@@ -91,6 +97,8 @@ Default mapping: `'' → high`, `reduced-rate → medium`, `zero-rate → zero.r
 - Skill: `/conta-api` — loads Conta API endpoint reference and data models
 - Skill: `/plugin-hooks` — full hook signatures with parameters and examples
 - Skill: `/sync-flow` — step-by-step sync flow with error handling and meta transitions
+- Skill: `/bump-version` — bump plugin version (major/minor/patch) in all required files
+- Skill: `/commit-tag-release` — full release flow: bump version, commit, tag, push
 - Full OpenAPI spec: `docs/conta-external-api.json` (301 schemas)
 - Detailed analysis: `docs/conta-api-analysis.md`
 - **Sandbox API key:** stored in `docs/sandbox-api-key` (do not commit to public repos)
