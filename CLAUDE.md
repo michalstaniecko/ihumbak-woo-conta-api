@@ -83,7 +83,7 @@ Key filters (use `/plugin-hooks` skill for full signatures):
 - `ihumbak_wca_settings` — filter merged plugin settings
 - `ihumbak_wca_org_reference` — filter the organization reference displayed on the invoice PDF
 
-Action Scheduler actions: `ihumbak_wca_sync_invoice`, `ihumbak_wca_sync_payment`, `ihumbak_wca_create_credit_note`
+Action Scheduler actions: `ihumbak_wca_sync_invoice` (includes automatic payment registration), `ihumbak_wca_create_credit_note`
 
 ## VAT Code Mapping
 

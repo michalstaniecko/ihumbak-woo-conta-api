@@ -118,10 +118,7 @@ When true, deletes all `_ihumbak_wca_*` order meta on plugin uninstall.
 All actions accept `$order_id` (int). Registered in `OrderHooks::register()`, handled by `OrderHooks`.
 
 ### ihumbak_wca_sync_invoice
-Triggered on order status change to trigger status or 'completed' (if not yet synced). Handler: `handle_sync_invoice()` → calls `InvoiceSync::sync_order()`.
-
-### ihumbak_wca_sync_payment
-Triggered on order status change to 'completed'. Handler: `handle_sync_payment()` → calls `PaymentSync::sync_payment()`.
+Triggered on order status change to trigger status. Handler: `handle_sync_invoice()` → calls `InvoiceSync::sync_order()` (which automatically registers payment).
 
 ### ihumbak_wca_create_credit_note
 Triggered on order status change to 'refunded' (only if invoice exists). Handler: `handle_create_credit_note()` → calls `InvoiceSync::create_credit_note()`.
@@ -130,8 +127,7 @@ Triggered on order status change to 'refunded' (only if invoice exists). Handler
 
 | Hook | Handler | Purpose |
 |------|---------|---------|
-| `woocommerce_order_status_{trigger}` | `OrderHooks::on_invoice_trigger()` | Create invoice |
-| `woocommerce_order_status_completed` | `OrderHooks::on_order_completed()` | Sync payment |
+| `woocommerce_order_status_{trigger}` | `OrderHooks::on_invoice_trigger()` | Create invoice + auto-register payment |
 | `woocommerce_order_status_refunded` | `OrderHooks::on_order_refunded()` | Create credit note |
 | `bulk_actions-woocommerce_page_wc-orders` | Filter | Add "Sync to Conta" bulk action (HPOS) |
 | `bulk_actions-edit-shop_order` | Filter | Add "Sync to Conta" bulk action (legacy) |
@@ -142,4 +138,3 @@ Triggered on order status change to 'refunded' (only if invoice exists). Handler
 |--------|-------|---------|
 | `ihumbak_wca_test_connection` | `ihumbak_wca_test_connection` | `SettingsPage::ajax_test_connection()` |
 | `ihumbak_wca_sync_order` | `ihumbak_wca_sync_order` | `OrderMetaBox::ajax_sync_order()` |
-| `ihumbak_wca_sync_payment` | `ihumbak_wca_sync_payment` | `OrderMetaBox::ajax_sync_payment()` |

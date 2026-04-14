@@ -90,13 +90,11 @@ class OrderHooks {
 		if ( $this->settings->is_auto_sync_enabled() ) {
 			$trigger_status = $this->settings->get_invoice_trigger_status();
 			add_action( 'woocommerce_order_status_' . $trigger_status, [ $this, 'on_invoice_trigger' ], 10, 1 );
-			add_action( 'woocommerce_order_status_completed', [ $this, 'on_order_completed' ], 10, 1 );
 			add_action( 'woocommerce_order_status_refunded', [ $this, 'on_order_refunded' ], 10, 1 );
 		}
 
 		// Action Scheduler handlers (always registered — used by bulk action and manual sync).
 		add_action( 'ihumbak_wca_sync_invoice', [ $this, 'handle_sync_invoice' ], 10, 1 );
-		add_action( 'ihumbak_wca_sync_payment', [ $this, 'handle_sync_payment' ], 10, 1 );
 		add_action( 'ihumbak_wca_create_credit_note', [ $this, 'handle_create_credit_note' ], 10, 1 );
 
 		// Bulk actions on orders list.
@@ -133,37 +131,6 @@ class OrderHooks {
 		}
 
 		$this->schedule_action( 'ihumbak_wca_sync_invoice', $order_id );
-	}
-
-	/**
-	 * Handle order status change to completed.
-	 *
-	 * Schedules payment registration via Action Scheduler.
-	 *
-	 * @param int $order_id WooCommerce order ID.
-	 * @return void
-	 */
-	public function on_order_completed( int $order_id ): void {
-		$order = wc_get_order( $order_id );
-
-		if ( ! $order instanceof WC_Order ) {
-			return;
-		}
-
-		if ( ! $this->should_sync_order( $order ) ) {
-			return;
-		}
-
-		if ( $this->payment_sync->is_payment_synced( $order ) ) {
-			return;
-		}
-
-		// Schedule invoice sync first if not yet synced, then payment.
-		if ( ! $this->invoice_sync->is_synced( $order ) ) {
-			$this->schedule_action( 'ihumbak_wca_sync_invoice', $order_id );
-		}
-
-		$this->schedule_action( 'ihumbak_wca_sync_payment', $order_id );
 	}
 
 	/**
@@ -207,33 +174,6 @@ class OrderHooks {
 		if ( is_wp_error( $result ) ) {
 			$this->logger->error(
 				'Scheduled invoice sync failed',
-				[
-					'order_id' => $order_id,
-					'error'    => $result->get_error_message(),
-				]
-			);
-		}
-	}
-
-	/**
-	 * Handle scheduled payment sync action.
-	 *
-	 * @param int $order_id WooCommerce order ID.
-	 * @return void
-	 */
-	public function handle_sync_payment( int $order_id ): void {
-		$order = wc_get_order( $order_id );
-
-		if ( ! $order instanceof WC_Order ) {
-			$this->logger->error( 'Scheduled payment sync failed: order not found', [ 'order_id' => $order_id ] );
-			return;
-		}
-
-		$result = $this->payment_sync->sync_payment( $order );
-
-		if ( is_wp_error( $result ) ) {
-			$this->logger->error(
-				'Scheduled payment sync failed',
 				[
 					'order_id' => $order_id,
 					'error'    => $result->get_error_message(),

@@ -72,7 +72,6 @@ class OrderMetaBox {
 	public function register(): void {
 		add_action( 'add_meta_boxes', [ $this, 'add_meta_box' ] );
 		add_action( 'wp_ajax_ihumbak_wca_sync_order', [ $this, 'ajax_sync_order' ] );
-		add_action( 'wp_ajax_ihumbak_wca_sync_payment', [ $this, 'ajax_sync_payment' ] );
 		add_action( 'wp_ajax_ihumbak_wca_manual_invoice', [ $this, 'ajax_manual_invoice' ] );
 		add_action( 'wp_ajax_ihumbak_wca_search_customers', [ $this, 'ajax_search_customers' ] );
 	}
@@ -210,15 +209,6 @@ class OrderMetaBox {
 				<?php endif; ?>
 
 				<div id="ihumbak-wca-customer-selection" style="display:none;"></div>
-
-				<?php if ( $is_assigned && ! $payment_done ) : ?>
-					<button type="button"
-						class="button"
-						id="ihumbak-wca-sync-payment"
-						style="width:100%;">
-						<?php esc_html_e( 'Sync Payment', 'ihumbak-woo-conta-api' ); ?>
-					</button>
-				<?php endif; ?>
 			</div>
 
 			<div id="ihumbak-wca-manual-assign" style="margin-top:12px;border-top:1px solid #ddd;padding-top:12px;">
@@ -350,6 +340,11 @@ class OrderMetaBox {
 								$box.find('#ihumbak-wca-invoice-type').text(response.data.invoice_type);
 								$box.find('#ihumbak-wca-customer-id').text(response.data.customer_id);
 								$box.find('#ihumbak-wca-sync-date').text(response.data.sync_date);
+								if (response.data.payment_synced) {
+									$box.find('#ihumbak-wca-payment-status').html(
+										'<span style="color:green;"><?php echo esc_js( __( 'Synced', 'ihumbak-woo-conta-api' ) ); ?></span>'
+									);
+								}
 								$box.find('#ihumbak-wca-error').remove();
 								$box.find('.ihumbak-wca-sync-order-btn').remove();
 								$box.find('#ihumbak-wca-customer-selection').empty().hide();
@@ -569,38 +564,6 @@ class OrderMetaBox {
 					});
 				});
 
-				$box.on('click', '#ihumbak-wca-sync-payment', function(e) {
-					e.preventDefault();
-					if (syncInFlight) return;
-					var $btn = $(this);
-					showSyncOverlay('<?php echo esc_js( __( 'Syncing payment...', 'ihumbak-woo-conta-api' ) ); ?>');
-
-					$.ajax({
-						url: ajaxurl,
-						type: 'POST',
-						data: {
-							action: 'ihumbak_wca_sync_payment',
-							order_id: orderId,
-							ihumbak_wca_nonce: nonce
-						},
-						dataType: 'json',
-						success: function(response) {
-							hideSyncOverlay();
-							if (response.success) {
-								$box.find('#ihumbak-wca-payment-status').html(
-									'<span style="color:green;"><?php echo esc_js( __( 'Synced', 'ihumbak-woo-conta-api' ) ); ?></span>'
-								);
-								$btn.remove();
-							} else {
-								alert(response.data || '<?php echo esc_js( __( 'Payment sync failed.', 'ihumbak-woo-conta-api' ) ); ?>');
-							}
-						},
-						error: function(xhr, status, error) {
-							hideSyncOverlay();
-							alert('AJAX Error: ' + status + ' - ' + error);
-						}
-					});
-				});
 			})(jQuery);
 		</script>
 		<?php
@@ -651,50 +614,14 @@ class OrderMetaBox {
 
 		wp_send_json_success(
 			[
-				'status_badge' => $this->get_status_badge_html( $sync_status ),
-				'invoice_id'   => (string) $order->get_meta( InvoiceSync::META_INVOICE_ID ),
-				'invoice_no'   => (string) $order->get_meta( InvoiceSync::META_INVOICE_NO ),
-				'invoice_type' => (string) $order->get_meta( InvoiceSync::META_INVOICE_TYPE ),
-				'customer_id'  => (string) $order->get_meta( CustomerSync::META_CUSTOMER_ID ),
-				'sync_date'    => (string) $order->get_meta( InvoiceSync::META_SYNC_DATE ),
-				'error'        => is_string( $sync_error ) && '' !== $sync_error ? $sync_error : '',
-			]
-		);
-	}
-
-	/**
-	 * AJAX handler for syncing a payment to Conta.
-	 *
-	 * @return void
-	 */
-	public function ajax_sync_payment(): void {
-		check_ajax_referer( 'ihumbak_wca_meta_box', 'ihumbak_wca_nonce' );
-
-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_send_json_error( __( 'Permission denied.', 'ihumbak-woo-conta-api' ), 403 );
-		}
-
-		$order_id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
-
-		if ( 0 === $order_id ) {
-			wp_send_json_error( __( 'Invalid order ID.', 'ihumbak-woo-conta-api' ), 400 );
-		}
-
-		$order = wc_get_order( $order_id );
-
-		if ( ! $order instanceof WC_Order ) {
-			wp_send_json_error( __( 'Order not found.', 'ihumbak-woo-conta-api' ), 404 );
-		}
-
-		$result = $this->payment_sync->sync_payment( $order );
-
-		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( $result->get_error_message() );
-		}
-
-		wp_send_json_success(
-			[
-				'payment_synced' => true,
+				'status_badge'   => $this->get_status_badge_html( $sync_status ),
+				'invoice_id'     => (string) $order->get_meta( InvoiceSync::META_INVOICE_ID ),
+				'invoice_no'     => (string) $order->get_meta( InvoiceSync::META_INVOICE_NO ),
+				'invoice_type'   => (string) $order->get_meta( InvoiceSync::META_INVOICE_TYPE ),
+				'customer_id'    => (string) $order->get_meta( CustomerSync::META_CUSTOMER_ID ),
+				'sync_date'      => (string) $order->get_meta( InvoiceSync::META_SYNC_DATE ),
+				'error'          => is_string( $sync_error ) && '' !== $sync_error ? $sync_error : '',
+				'payment_synced' => $this->payment_sync->is_payment_synced( $order ),
 			]
 		);
 	}

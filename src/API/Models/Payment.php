@@ -70,8 +70,8 @@ class Payment {
 	public static function from_wc_order( \WC_Order $order ): self {
 		$payment = new self();
 
-		$date_paid     = $order->get_date_paid();
-		$payment->date = ( null !== $date_paid ) ? $date_paid->date( 'Y-m-d' ) : gmdate( 'Y-m-d' );
+		$order_date    = $order->get_date_created();
+		$payment->date = ( null !== $order_date ) ? $order_date->date( 'Y-m-d' ) : gmdate( 'Y-m-d' );
 
 		$payment->amount = (float) $order->get_total();
 

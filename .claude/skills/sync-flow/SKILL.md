@@ -11,12 +11,10 @@ disable-model-invocation: false
 
 | Trigger | Handler | What Happens |
 |---------|---------|-------------|
-| Order status → trigger status | `OrderHooks::on_invoice_trigger()` | Schedules invoice sync |
-| Order status → completed | `OrderHooks::on_order_completed()` | Schedules invoice (if needed) + payment sync |
+| Order status → trigger status | `OrderHooks::on_invoice_trigger()` | Schedules invoice sync (payment registered automatically) |
 | Order status → refunded | `OrderHooks::on_order_refunded()` | Schedules credit note (if invoice exists) |
 | Bulk action "Sync to Conta" | `OrderHooks::handle_bulk_action()` | Synchronous invoice + payment sync |
-| Meta box "Sync" button | `OrderMetaBox::ajax_sync_order()` | Synchronous invoice sync |
-| Meta box "Sync Payment" button | `OrderMetaBox::ajax_sync_payment()` | Synchronous payment sync |
+| Meta box "Sync" button | `OrderMetaBox::ajax_sync_order()` | Synchronous invoice sync (payment registered automatically) |
 
 All automatic triggers check `ihumbak_wca_should_sync_order` filter and `auto_sync` setting.
 
@@ -56,6 +54,11 @@ InvoiceSync::sync_order($order) → array|WP_Error
    ├─ On success: store meta (invoice_id, invoice_no, sync_status=synced, sync_date)
    │  └─ Delete '_ihumbak_wca_sync_error'
    └─ On error: store_sync_error(sync_status=error, sync_error=message)
+
+5. AUTO-REGISTER PAYMENT
+   ├─ Check is_payment_synced() — skip if already done
+   ├─ PaymentSync::sync_payment($order)
+   └─ On failure: log warning only (invoice success is preserved)
 ```
 
 ## Payment Sync Flow
@@ -79,7 +82,7 @@ PaymentSync::sync_payment($order) → array|WP_Error
 
 4. REGISTER PAYMENT
    ├─ Payment::from_wc_order($order) builds payload
-   │  ├─ date: order date_paid or today
+   │  ├─ date: order creation date (customers pay at order time)
    │  ├─ amount: order total
    │  └─ description: "WooCommerce Order #N (payment_method)"
    ├─ Currency check:

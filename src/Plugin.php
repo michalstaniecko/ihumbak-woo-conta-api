@@ -111,8 +111,8 @@ final class Plugin {
 
 		// Sync modules.
 		$customer_sync = new CustomerSync( $customers, $this->logger, $this->settings );
-		$invoice_sync  = new InvoiceSync( $invoices, $customer_sync, $this->vat_mapper, $this->settings, $this->logger );
 		$payment_sync  = new PaymentSync( $payments, $invoices, $this->settings, $this->logger );
+		$invoice_sync  = new InvoiceSync( $invoices, $customer_sync, $this->vat_mapper, $this->settings, $this->logger, $payment_sync );
 
 		// WooCommerce order hooks.
 		$order_hooks = new OrderHooks( $invoice_sync, $payment_sync, $this->settings, $this->logger );

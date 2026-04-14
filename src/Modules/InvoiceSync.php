@@ -100,6 +100,13 @@ class InvoiceSync {
 	private Logger $logger;
 
 	/**
+	 * Payment sync module.
+	 *
+	 * @var PaymentSync
+	 */
+	private PaymentSync $payment_sync;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Invoices     $invoices      Invoices API endpoint.
@@ -107,19 +114,22 @@ class InvoiceSync {
 	 * @param VatMapper    $vat_mapper    VAT mapper service.
 	 * @param Settings     $settings      Plugin settings service.
 	 * @param Logger       $logger        Logger service.
+	 * @param PaymentSync  $payment_sync  Payment sync module.
 	 */
 	public function __construct(
 		Invoices $invoices,
 		CustomerSync $customer_sync,
 		VatMapper $vat_mapper,
 		Settings $settings,
-		Logger $logger
+		Logger $logger,
+		PaymentSync $payment_sync
 	) {
 		$this->invoices      = $invoices;
 		$this->customer_sync = $customer_sync;
 		$this->vat_mapper    = $vat_mapper;
 		$this->settings      = $settings;
 		$this->logger        = $logger;
+		$this->payment_sync  = $payment_sync;
 	}
 
 	/**
@@ -201,6 +211,21 @@ class InvoiceSync {
 		$order->update_meta_data( self::META_SYNC_DATE, gmdate( 'c' ) );
 		$order->delete_meta_data( self::META_SYNC_ERROR );
 		$order->save();
+
+		if ( ! $this->payment_sync->is_payment_synced( $order ) ) {
+			$payment_result = $this->payment_sync->sync_payment( $order );
+
+			if ( is_wp_error( $payment_result ) ) {
+				$this->logger->warning(
+					'Automatic payment sync failed after invoice creation',
+					[
+						'order_id'   => $order->get_id(),
+						'invoice_id' => $invoice_id,
+						'error'      => $payment_result->get_error_message(),
+					]
+				);
+			}
+		}
 
 		$this->logger->info(
 			'Invoice created in Conta',
