@@ -60,11 +60,11 @@ class Invoice {
 	public string $invoice_due_date = '';
 
 	/**
-	 * Invoice type (NORMAL, CREDIT, etc.).
+	 * Invoice type. Defaults to CASH; NORMAL is used for foreign-currency orders.
 	 *
 	 * @var string
 	 */
-	public string $type = 'NORMAL';
+	public string $type = 'CASH';
 
 	/**
 	 * Invoice language code.
@@ -275,7 +275,7 @@ class Invoice {
 		$invoice->customer_id        = (int) ( $data['customerId'] ?? 0 );
 		$invoice->invoice_date       = (string) ( $data['invoiceDate'] ?? '' );
 		$invoice->invoice_due_date   = (string) ( $data['invoiceDueDate'] ?? '' );
-		$invoice->type               = (string) ( $data['type'] ?? 'NORMAL' );
+		$invoice->type               = (string) ( $data['type'] ?? 'CASH' );
 		$invoice->invoice_language   = (string) ( $data['invoiceLanguage'] ?? 'NO' );
 		$invoice->invoice_currency   = (string) ( $data['invoiceCurrency'] ?? 'NOK' );
 		$invoice->customer_reference = (string) ( $data['customerReference'] ?? '' );
@@ -385,11 +385,15 @@ class Invoice {
 		// Personal message — rendered from template in settings.
 		$template = $settings->get_personal_message_template();
 		if ( '' !== $template ) {
-			$invoice->personal_message = substr( str_replace(
-				[ '{order_id}', '{payment_method}' ],
-				[ (string) $order->get_order_number(), $order->get_payment_method_title() ],
-				$template
-			), 0, 300 );
+			$invoice->personal_message = substr(
+				str_replace(
+					[ '{order_id}', '{payment_method}' ],
+					[ (string) $order->get_order_number(), $order->get_payment_method_title() ],
+					$template
+				),
+				0,
+				300
+			);
 		}
 
 		// Build invoice lines.

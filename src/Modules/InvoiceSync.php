@@ -58,7 +58,7 @@ class InvoiceSync {
 	public const META_SYNC_ERROR = '_ihumbak_wca_sync_error';
 
 	/**
-	 * Order meta key for Conta invoice type (NORMAL or CASH).
+	 * Order meta key for Conta invoice type (CASH by default, NORMAL for foreign-currency orders).
 	 *
 	 * @var string
 	 */
@@ -123,31 +123,16 @@ class InvoiceSync {
 	}
 
 	/**
-	 * Detect the invoice type based on whether the customer has a VAT number.
-	 *
-	 * @param WC_Order $order WooCommerce order.
-	 * @return string 'NORMAL' if VAT number is present, 'CASH' otherwise.
-	 */
-	public function detect_invoice_type( WC_Order $order ): string {
-		$vat_field = $this->settings->get_vat_number_field();
-
-		if ( '' === $vat_field ) {
-			return 'CASH';
-		}
-
-		$vat_number = (string) $order->get_meta( $vat_field );
-
-		return '' !== $vat_number ? 'NORMAL' : 'CASH';
-	}
-
-	/**
 	 * Sync a WooCommerce order to Conta as an invoice.
 	 *
 	 * If the order is already synced, returns the existing invoice data from Conta.
 	 * Otherwise, syncs the customer, builds the invoice, and creates it via the API.
 	 *
+	 * All orders use CASH invoice type. The Conta API does not support CASH invoices
+	 * with foreign currencies, so non-NOK orders automatically fall back to NORMAL type.
+	 *
 	 * @param WC_Order $order                 WooCommerce order.
-	 * @param string   $invoice_type          Invoice type: 'NORMAL', 'CASH', or '' for auto-detect.
+	 * @param string   $invoice_type          Deprecated. No longer used; type is resolved automatically.
 	 * @param int      $selected_customer_id  Optional pre-selected Conta customer ID from admin UI.
 	 * @param bool     $force_create_customer Force-create a new customer, skipping search.
 	 * @return array<string, mixed>|WP_Error Invoice data on success, WP_Error on failure.
@@ -176,18 +161,13 @@ class InvoiceSync {
 			return $customer_id;
 		}
 
-		// Resolve invoice type.
-		if ( '' === $invoice_type ) {
-			$invoice_type = $this->detect_invoice_type( $order );
-		}
+		// Resolve invoice type. Default CASH; fall back to NORMAL for foreign currencies
+		// because the Conta API does not support CASH invoices with non-NOK currencies.
+		$invoice_type = 'CASH';
 
-		/**
-		 * Filter the invoice type before creating the invoice in Conta.
-		 *
-		 * @param string   $invoice_type Invoice type: 'NORMAL' or 'CASH'.
-		 * @param WC_Order $order        WooCommerce order.
-		 */
-		$invoice_type = apply_filters( 'ihumbak_wca_invoice_type', $invoice_type, $order );
+		if ( 'NOK' !== $order->get_currency() ) {
+			$invoice_type = 'NORMAL';
+		}
 
 		// Build invoice from order.
 		$invoice       = Invoice::from_wc_order( $order, $customer_id, $this->vat_mapper, $this->settings );

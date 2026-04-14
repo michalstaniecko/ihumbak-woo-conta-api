@@ -42,19 +42,19 @@ class Settings {
 	 */
 	private function get_defaults(): array {
 		return [
-			'api_key'                => '',
-			'organization_id'        => 0,
-			'environment'            => 'sandbox',
-			'vat_mapping'            => [
+			'api_key'                   => '',
+			'organization_id'           => 0,
+			'environment'               => 'sandbox',
+			'vat_mapping'               => [
 				''             => 'high',
 				'reduced-rate' => 'medium',
 				'zero-rate'    => 'zero.rate',
 			],
-			'invoice_language'       => 'NO',
-			'invoice_trigger_status' => 'processing',
-			'delivery_method'        => 'EMAIL',
-			'auto_sync_enabled'      => false,
-			'vat_number_field'       => '',
+			'invoice_language'          => 'NO',
+			'invoice_trigger_status'    => 'processing',
+			'delivery_method'           => 'EMAIL',
+			'auto_sync_enabled'         => false,
+			'vat_number_field'          => '',
 			'personal_message_template' => 'WooCommerce Order #{order_id} ({payment_method})',
 		];
 	}
@@ -73,13 +73,13 @@ class Settings {
 
 		// Also read from individual WC settings options (set by SettingsPage).
 		$wc_overrides = [
-			'api_key'                => get_option( 'ihumbak_wca_api_key', '' ),
-			'environment'            => get_option( 'ihumbak_wca_environment', '' ),
-			'organization_id'        => (int) get_option( 'ihumbak_wca_organization_id', 0 ),
-			'invoice_language'       => get_option( 'ihumbak_wca_invoice_language', '' ),
-			'invoice_trigger_status' => get_option( 'ihumbak_wca_trigger_status', '' ),
-			'delivery_method'        => get_option( 'ihumbak_wca_delivery_method', '' ),
-			'vat_number_field'       => get_option( 'ihumbak_wca_vat_number_field', '' ),
+			'api_key'                   => get_option( 'ihumbak_wca_api_key', '' ),
+			'environment'               => get_option( 'ihumbak_wca_environment', '' ),
+			'organization_id'           => (int) get_option( 'ihumbak_wca_organization_id', 0 ),
+			'invoice_language'          => get_option( 'ihumbak_wca_invoice_language', '' ),
+			'invoice_trigger_status'    => get_option( 'ihumbak_wca_trigger_status', '' ),
+			'delivery_method'           => get_option( 'ihumbak_wca_delivery_method', '' ),
+			'vat_number_field'          => get_option( 'ihumbak_wca_vat_number_field', '' ),
 			'personal_message_template' => get_option( 'ihumbak_wca_personal_message_template', '' ),
 		];
 

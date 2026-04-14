@@ -123,9 +123,8 @@ class OrderMetaBox {
 		$is_assigned  = $is_synced || 'manual' === $sync_status;
 		$order_id     = $order->get_id();
 
-		$has_vat_number = '' !== $this->get_order_vat_number( $order );
-		$invoice_type   = $order->get_meta( InvoiceSync::META_INVOICE_TYPE );
-		$dash           = '&#8212;';
+		$invoice_type = $order->get_meta( InvoiceSync::META_INVOICE_TYPE );
+		$dash         = '&#8212;';
 		?>
 		<div id="ihumbak-wca-meta-box" data-order-id="<?php echo esc_attr( (string) $order_id ); ?>">
 			<div id="ihumbak-wca-sync-overlay">
@@ -204,16 +203,9 @@ class OrderMetaBox {
 			<div style="margin-top:12px;">
 				<?php if ( ! $is_assigned ) : ?>
 					<button type="button"
-						class="button <?php echo $has_vat_number ? 'button-primary' : ''; ?> ihumbak-wca-sync-order-btn"
-						data-invoice-type="NORMAL"
+						class="button button-primary ihumbak-wca-sync-order-btn"
 						style="width:100%;margin-bottom:8px;">
 						<?php esc_html_e( 'Create Invoice', 'ihumbak-woo-conta-api' ); ?>
-					</button>
-					<button type="button"
-						class="button <?php echo $has_vat_number ? '' : 'button-primary'; ?> ihumbak-wca-sync-order-btn"
-						data-invoice-type="CASH"
-						style="width:100%;margin-bottom:8px;">
-						<?php esc_html_e( 'Create Cash Invoice', 'ihumbak-woo-conta-api' ); ?>
 					</button>
 				<?php endif; ?>
 
@@ -328,16 +320,12 @@ class OrderMetaBox {
 					window.removeEventListener('beforeunload', beforeUnloadHandler);
 				}
 
-				function doSyncOrder(invoiceType, selectedCustomerId, forceCreate) {
-					var syncMsg = (invoiceType === 'CASH')
-						? '<?php echo esc_js( __( 'Creating cash invoice...', 'ihumbak-woo-conta-api' ) ); ?>'
-						: '<?php echo esc_js( __( 'Creating invoice...', 'ihumbak-woo-conta-api' ) ); ?>';
-					showSyncOverlay(syncMsg);
+				function doSyncOrder(selectedCustomerId, forceCreate) {
+					showSyncOverlay('<?php echo esc_js( __( 'Creating invoice...', 'ihumbak-woo-conta-api' ) ); ?>');
 
 					var postData = {
 						action: 'ihumbak_wca_sync_order',
 						order_id: orderId,
-						invoice_type: invoiceType,
 						ihumbak_wca_nonce: nonce
 					};
 
@@ -395,7 +383,7 @@ class OrderMetaBox {
 					return parts.length ? '<div class="ihumbak-wca-card-row">' + parts.join('') + '</div>' : '';
 				}
 
-				function showCustomerSelection(customers, orderBilling, invoiceType) {
+				function showCustomerSelection(customers, orderBilling) {
 					var $sel = $box.find('#ihumbak-wca-customer-selection');
 					var html = '<p style="font-weight:600;margin:0 0 8px;">'
 						+ '<?php echo esc_js( __( 'Multiple matching customers found. Please select:', 'ihumbak-woo-conta-api' ) ); ?>'
@@ -446,7 +434,7 @@ class OrderMetaBox {
 						+ '<?php echo esc_js( __( 'Cancel', 'ihumbak-woo-conta-api' ) ); ?></button>';
 					html += '</div>';
 
-					$sel.html(html).data('invoice-type', invoiceType).slideDown(200);
+					$sel.html(html).slideDown(200);
 					$box.find('.ihumbak-wca-sync-order-btn').hide();
 
 					// Highlight selected card.
@@ -460,7 +448,6 @@ class OrderMetaBox {
 				$box.on('click', '.ihumbak-wca-sync-order-btn', function(e) {
 					e.preventDefault();
 					if (syncInFlight) return;
-					var invoiceType = $(this).data('invoice-type');
 					showSyncOverlay('<?php echo esc_js( __( 'Searching customers...', 'ihumbak-woo-conta-api' ) ); ?>');
 
 					$.ajax({
@@ -484,13 +471,13 @@ class OrderMetaBox {
 							if (count <= 1) {
 								// 0 or 1 match: proceed directly (overlay stays active, doSyncOrder updates message).
 								var selectedId = (count === 1) ? response.data.customers[0].id : 0;
-								doSyncOrder(invoiceType, selectedId, false);
+								doSyncOrder(selectedId, false);
 								return;
 							}
 
 							// Multiple matches: hide overlay and show selection UI.
 							hideSyncOverlay();
-							showCustomerSelection(response.data.customers, response.data.order_billing, invoiceType);
+							showCustomerSelection(response.data.customers, response.data.order_billing);
 						},
 						error: function(xhr, status, error) {
 							hideSyncOverlay();
@@ -504,11 +491,10 @@ class OrderMetaBox {
 					e.preventDefault();
 					var $sel = $box.find('#ihumbak-wca-customer-selection');
 					var selectedId = parseInt($sel.find('input[name="ihumbak_wca_customer"]:checked').val(), 10) || 0;
-					var invoiceType = $sel.data('invoice-type');
 					var forceCreate = (selectedId === 0);
 
 					$sel.slideUp(200);
-					doSyncOrder(invoiceType, selectedId, forceCreate);
+					doSyncOrder(selectedId, forceCreate);
 				});
 
 				// Customer selection — Cancel button.
@@ -600,7 +586,6 @@ class OrderMetaBox {
 						dataType: 'json',
 						success: function(response) {
 							hideSyncOverlay();
-							console.log('[WooConta Debug] Payment response:', response);
 							if (response.success) {
 								$box.find('#ihumbak-wca-payment-status').html(
 									'<span style="color:green;"><?php echo esc_js( __( 'Synced', 'ihumbak-woo-conta-api' ) ); ?></span>'
@@ -612,8 +597,7 @@ class OrderMetaBox {
 						},
 						error: function(xhr, status, error) {
 							hideSyncOverlay();
-							console.error('[WooConta Debug] Payment AJAX failed:', status, error, xhr.responseText);
-							alert('AJAX Error: ' + status + ' - ' + error + '\n\nServer response:\n' + (xhr.responseText || 'empty').substring(0, 500));
+							alert('AJAX Error: ' + status + ' - ' + error);
 						}
 					});
 				});
@@ -628,19 +612,13 @@ class OrderMetaBox {
 	 * @return void
 	 */
 	public function ajax_sync_order(): void {
-		// Debug: log that we reached the handler.
-		error_log( '[WooConta Debug] ajax_sync_order called. POST: ' . wp_json_encode( $_POST ) );
-
-		// TODO: Re-enable nonce check after debugging.
-		// check_ajax_referer( 'ihumbak_wca_meta_box' );
+		check_ajax_referer( 'ihumbak_wca_meta_box', 'ihumbak_wca_nonce' );
 
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			error_log( '[WooConta Debug] Permission denied for user ' . get_current_user_id() );
 			wp_send_json_error( __( 'Permission denied.', 'ihumbak-woo-conta-api' ), 403 );
 		}
 
 		$order_id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
-		error_log( '[WooConta Debug] Order ID: ' . $order_id );
 
 		if ( 0 === $order_id ) {
 			wp_send_json_error( __( 'Invalid order ID.', 'ihumbak-woo-conta-api' ), 400 );
@@ -649,30 +627,13 @@ class OrderMetaBox {
 		$order = wc_get_order( $order_id );
 
 		if ( ! $order instanceof WC_Order ) {
-			error_log( '[WooConta Debug] Order not found: ' . $order_id );
 			wp_send_json_error( __( 'Order not found.', 'ihumbak-woo-conta-api' ), 404 );
-		}
-
-		$invoice_type = isset( $_POST['invoice_type'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice_type'] ) ) : '';
-
-		if ( '' !== $invoice_type && ! in_array( $invoice_type, [ 'NORMAL', 'CASH' ], true ) ) {
-			wp_send_json_error( __( 'Invalid invoice type.', 'ihumbak-woo-conta-api' ), 400 );
 		}
 
 		$selected_customer_id  = isset( $_POST['selected_customer_id'] ) ? absint( $_POST['selected_customer_id'] ) : 0;
 		$force_create_customer = ! empty( $_POST['force_create_customer'] );
 
-		error_log( '[WooConta Debug] Order loaded. Calling sync_order...' );
-
-		try {
-			$result = $this->invoice_sync->sync_order( $order, $invoice_type, $selected_customer_id, $force_create_customer );
-		} catch ( \Throwable $e ) {
-			error_log( '[WooConta Debug] EXCEPTION in sync_order: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() );
-			error_log( '[WooConta Debug] Stack trace: ' . $e->getTraceAsString() );
-			wp_send_json_error( 'Exception: ' . $e->getMessage() );
-		}
-
-		error_log( '[WooConta Debug] sync_order result: ' . ( is_wp_error( $result ) ? 'WP_Error: ' . $result->get_error_message() : 'success' ) );
+		$result = $this->invoice_sync->sync_order( $order, '', $selected_customer_id, $force_create_customer );
 
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( $result->get_error_message() );
@@ -707,8 +668,7 @@ class OrderMetaBox {
 	 * @return void
 	 */
 	public function ajax_sync_payment(): void {
-		// TODO: Re-enable nonce check after debugging.
-		// check_ajax_referer( 'ihumbak_wca_meta_box' );
+		check_ajax_referer( 'ihumbak_wca_meta_box', 'ihumbak_wca_nonce' );
 
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			wp_send_json_error( __( 'Permission denied.', 'ihumbak-woo-conta-api' ), 403 );

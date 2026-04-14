@@ -47,7 +47,7 @@ Key patterns:
 - Models use `from_wc_order()` factory + `to_array()` for API serialization
 - All API responses return `array|WP_Error`
 - Async processing via Action Scheduler (group: `ihumbak-woo-conta-api`), fallback to `do_action()`
-- Invoice type split: orders with VAT number → Regular Invoice (`INVOICE`), without → Cash Invoice (`CASH_INVOICE`)
+- Invoice type: all orders use `CASH` by default; non-NOK (foreign currency) orders fall back to `NORMAL` because the Conta API rejects CASH invoices in foreign currencies
 - Customer deduplication: search by email + VAT number, admin UI for selecting among multiple matches
 - Invoice model includes `orgReference` and `customerReference` (order number, payment method, transaction ID)
 
@@ -60,7 +60,7 @@ Key patterns:
 | `_ihumbak_wca_sync_status` | InvoiceSync | `synced` / `error` |
 | `_ihumbak_wca_sync_date` | InvoiceSync | ISO 8601 timestamp |
 | `_ihumbak_wca_sync_error` | InvoiceSync | Error message (deleted on success) |
-| `_ihumbak_wca_invoice_type` | InvoiceSync | `INVOICE` or `CASH_INVOICE` |
+| `_ihumbak_wca_invoice_type` | InvoiceSync | `CASH` (or `NORMAL` for foreign currency orders) |
 | `_ihumbak_wca_customer_id` | CustomerSync | Conta customer ID |
 | `_ihumbak_wca_payment_synced` | PaymentSync | `1` if payment registered |
 
@@ -81,6 +81,7 @@ Key filters (use `/plugin-hooks` skill for full signatures):
 - `ihumbak_wca_vat_code` — override VAT code resolution
 - `ihumbak_wca_api_request_args` — modify HTTP request args for all API calls
 - `ihumbak_wca_settings` — filter merged plugin settings
+- `ihumbak_wca_org_reference` — filter the organization reference displayed on the invoice PDF
 
 Action Scheduler actions: `ihumbak_wca_sync_invoice`, `ihumbak_wca_sync_payment`, `ihumbak_wca_create_credit_note`
 

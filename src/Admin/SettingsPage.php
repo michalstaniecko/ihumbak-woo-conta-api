@@ -120,14 +120,14 @@ class SettingsPage {
 	private function sync_to_settings_service(): void {
 		$current = $this->settings->get_all();
 
-		$current['api_key']                = get_option( 'ihumbak_wca_api_key', '' );
-		$current['environment']            = get_option( 'ihumbak_wca_environment', 'sandbox' );
-		$current['organization_id']        = (int) get_option( 'ihumbak_wca_organization_id', 0 );
-		$current['invoice_language']       = get_option( 'ihumbak_wca_invoice_language', 'NO' );
-		$current['invoice_trigger_status'] = get_option( 'ihumbak_wca_trigger_status', 'wc-processing' );
-		$current['delivery_method']        = get_option( 'ihumbak_wca_delivery_method', 'EMAIL' );
-		$current['auto_sync_enabled']      = 'yes' === get_option( 'ihumbak_wca_auto_sync', 'no' );
-		$current['vat_number_field']       = get_option( 'ihumbak_wca_vat_number_field', '' );
+		$current['api_key']                   = get_option( 'ihumbak_wca_api_key', '' );
+		$current['environment']               = get_option( 'ihumbak_wca_environment', 'sandbox' );
+		$current['organization_id']           = (int) get_option( 'ihumbak_wca_organization_id', 0 );
+		$current['invoice_language']          = get_option( 'ihumbak_wca_invoice_language', 'NO' );
+		$current['invoice_trigger_status']    = get_option( 'ihumbak_wca_trigger_status', 'wc-processing' );
+		$current['delivery_method']           = get_option( 'ihumbak_wca_delivery_method', 'EMAIL' );
+		$current['auto_sync_enabled']         = 'yes' === get_option( 'ihumbak_wca_auto_sync', 'no' );
+		$current['vat_number_field']          = get_option( 'ihumbak_wca_vat_number_field', '' );
 		$current['personal_message_template'] = get_option( 'ihumbak_wca_personal_message_template', '' );
 
 		$current['vat_mapping'] = [
