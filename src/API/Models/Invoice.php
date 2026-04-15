@@ -263,6 +263,54 @@ class Invoice {
 	}
 
 	/**
+	 * Convert to Conta API format for invoice drafts.
+	 *
+	 * Uses `invoiceDraftLines` instead of `invoiceLines` and includes
+	 * `registrationSource`. Does not include date, due date, status,
+	 * showDiscount, orgReference, or delivery fields.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function to_draft_array(): array {
+		$data = [
+			'registrationSource' => 'CONTA',
+		];
+
+		if ( 0 !== $this->customer_id ) {
+			$data['customerId'] = $this->customer_id;
+		}
+
+		if ( [] !== $this->invoice_lines ) {
+			$data['invoiceDraftLines'] = array_map(
+				static fn( InvoiceLine $line ): array => $line->to_array(),
+				$this->invoice_lines,
+			);
+		}
+
+		if ( '' !== $this->type ) {
+			$data['type'] = $this->type;
+		}
+
+		if ( '' !== $this->invoice_language ) {
+			$data['invoiceLanguage'] = $this->invoice_language;
+		}
+
+		if ( '' !== $this->invoice_currency ) {
+			$data['invoiceCurrency'] = $this->invoice_currency;
+		}
+
+		if ( '' !== $this->personal_message ) {
+			$data['personalMessage'] = $this->personal_message;
+		}
+
+		if ( '' !== $this->customer_reference ) {
+			$data['customerReference'] = $this->customer_reference;
+		}
+
+		return $data;
+	}
+
+	/**
 	 * Create an Invoice from Conta API response data.
 	 *
 	 * @param array<string, mixed> $data Conta API response array.

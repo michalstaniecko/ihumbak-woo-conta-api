@@ -48,6 +48,16 @@ class Invoices extends AbstractEndpoint {
 	}
 
 	/**
+	 * Create a new invoice draft.
+	 *
+	 * @param array<string, mixed> $data Invoice draft data.
+	 * @return array<string, mixed>|WP_Error
+	 */
+	public function create_draft( array $data ): array|WP_Error {
+		return $this->client->post( $this->build_path( 'invoice-drafts' ), $data );
+	}
+
+	/**
 	 * Get an invoice by ID.
 	 *
 	 * @param int $id Invoice ID.
@@ -55,6 +65,16 @@ class Invoices extends AbstractEndpoint {
 	 */
 	public function get( int $id ): array|WP_Error {
 		return $this->client->get( $this->build_path( 'invoices', (string) $id ) );
+	}
+
+	/**
+	 * Get an invoice draft by ID.
+	 *
+	 * @param int $id Invoice draft ID.
+	 * @return array<string, mixed>|WP_Error
+	 */
+	public function get_draft( int $id ): array|WP_Error {
+		return $this->client->get( $this->build_path( 'invoice-drafts', (string) $id ) );
 	}
 
 	/**

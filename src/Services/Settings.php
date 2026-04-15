@@ -56,6 +56,7 @@ class Settings {
 			'auto_sync_enabled'         => false,
 			'vat_number_field'          => '',
 			'personal_message_template' => 'WooCommerce Order #{order_id} ({payment_method})',
+			'invoice_mode'              => 'draft',
 		];
 	}
 
@@ -81,6 +82,7 @@ class Settings {
 			'delivery_method'           => get_option( 'ihumbak_wca_delivery_method', '' ),
 			'vat_number_field'          => get_option( 'ihumbak_wca_vat_number_field', '' ),
 			'personal_message_template' => get_option( 'ihumbak_wca_personal_message_template', '' ),
+			'invoice_mode'              => get_option( 'ihumbak_wca_invoice_mode', '' ),
 		];
 
 		// Merge WC individual options over consolidated (non-empty values win).
@@ -222,6 +224,28 @@ class Settings {
 	 */
 	public function update( array $settings ): bool {
 		return update_option( self::OPTION_NAME, $settings );
+	}
+
+	/**
+	 * Get the invoice creation mode ('draft' or 'final').
+	 *
+	 * @return string 'draft' or 'final'.
+	 */
+	public function get_invoice_mode(): string {
+		$mode = (string) $this->get_all()['invoice_mode'];
+		if ( ! in_array( $mode, [ 'draft', 'final' ], true ) ) {
+			return 'draft';
+		}
+		return $mode;
+	}
+
+	/**
+	 * Check whether invoices should be created as drafts.
+	 *
+	 * @return bool True if draft mode is active.
+	 */
+	public function is_draft_mode(): bool {
+		return 'draft' === $this->get_invoice_mode();
 	}
 
 	/**

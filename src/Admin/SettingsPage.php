@@ -129,6 +129,7 @@ class SettingsPage {
 		$current['auto_sync_enabled']         = 'yes' === get_option( 'ihumbak_wca_auto_sync', 'no' );
 		$current['vat_number_field']          = get_option( 'ihumbak_wca_vat_number_field', '' );
 		$current['personal_message_template'] = get_option( 'ihumbak_wca_personal_message_template', '' );
+		$current['invoice_mode']              = get_option( 'ihumbak_wca_invoice_mode', 'draft' );
 
 		$current['vat_mapping'] = [
 			''             => get_option( 'ihumbak_wca_vat_standard', 'high' ),
@@ -310,6 +311,17 @@ class SettingsPage {
 				'name' => __( 'Invoice Settings', 'ihumbak-woo-conta-api' ),
 				'desc' => __( 'Configure invoice generation options.', 'ihumbak-woo-conta-api' ),
 				'id'   => 'ihumbak_wca_invoice',
+			],
+			[
+				'type'    => 'select',
+				'id'      => 'ihumbak_wca_invoice_mode',
+				'name'    => __( 'Invoice Mode', 'ihumbak-woo-conta-api' ),
+				'desc'    => __( 'Draft creates an editable invoice draft in Conta. Final creates a finalized invoice immediately.', 'ihumbak-woo-conta-api' ),
+				'options' => [
+					'draft' => __( 'Draft', 'ihumbak-woo-conta-api' ),
+					'final' => __( 'Final', 'ihumbak-woo-conta-api' ),
+				],
+				'default' => 'draft',
 			],
 			[
 				'type'    => 'select',

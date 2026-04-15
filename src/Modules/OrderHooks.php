@@ -258,8 +258,9 @@ class OrderHooks {
 				}
 			}
 
-			// Sync payment if order is paid.
-			if ( $order->is_paid() && ! $this->payment_sync->is_payment_synced( $order ) ) {
+			// Sync payment if order is paid and invoice is not a draft.
+			$synced_mode = $order->get_meta( InvoiceSync::META_INVOICE_MODE );
+			if ( $order->is_paid() && 'draft' !== $synced_mode && ! $this->payment_sync->is_payment_synced( $order ) ) {
 				$payment_result = $this->payment_sync->sync_payment( $order );
 
 				if ( is_wp_error( $payment_result ) ) {

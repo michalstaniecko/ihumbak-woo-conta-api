@@ -65,6 +65,13 @@ class InvoiceSync {
 	public const META_INVOICE_TYPE = '_ihumbak_wca_invoice_type';
 
 	/**
+	 * Order meta key recording whether the invoice was created as a draft or final.
+	 *
+	 * @var string
+	 */
+	public const META_INVOICE_MODE = '_ihumbak_wca_invoice_mode';
+
+	/**
 	 * Invoices API endpoint.
 	 *
 	 * @var Invoices
@@ -150,15 +157,21 @@ class InvoiceSync {
 	public function sync_order( WC_Order $order, string $invoice_type = '', int $selected_customer_id = 0, bool $force_create_customer = false ): array|WP_Error {
 		// If already synced, return existing invoice data from Conta.
 		if ( $this->is_synced( $order ) ) {
-			$invoice_id = (int) $order->get_meta( self::META_INVOICE_ID );
+			$invoice_id  = (int) $order->get_meta( self::META_INVOICE_ID );
+			$synced_mode = (string) $order->get_meta( self::META_INVOICE_MODE );
 
 			$this->logger->debug(
 				'Order already synced to Conta',
 				[
 					'order_id'   => $order->get_id(),
 					'invoice_id' => $invoice_id,
+					'mode'       => $synced_mode,
 				]
 			);
+
+			if ( 'draft' === $synced_mode ) {
+				return $this->invoices->get_draft( $invoice_id );
+			}
 
 			return $this->invoices->get( $invoice_id );
 		}
@@ -182,18 +195,30 @@ class InvoiceSync {
 		// Build invoice from order.
 		$invoice       = Invoice::from_wc_order( $order, $customer_id, $this->vat_mapper, $this->settings );
 		$invoice->type = $invoice_type;
-		$data          = $invoice->to_array();
+
+		$is_draft = $this->settings->is_draft_mode();
+
+		if ( $is_draft ) {
+			$data = $invoice->to_draft_array();
+		} else {
+			$data = $invoice->to_array();
+		}
 
 		/**
 		 * Filter invoice data before sending to Conta API.
 		 *
-		 * @param array<string, mixed> $data  Invoice data.
-		 * @param WC_Order             $order WooCommerce order.
+		 * @param array<string, mixed> $data     Invoice data.
+		 * @param WC_Order             $order    WooCommerce order.
+		 * @param bool                 $is_draft True if creating a draft, false for final invoice.
 		 */
-		$data = apply_filters( 'ihumbak_wca_invoice_data', $data, $order );
+		$data = apply_filters( 'ihumbak_wca_invoice_data', $data, $order, $is_draft );
 
 		// Create invoice in Conta.
-		$result = $this->invoices->create( $data );
+		if ( $is_draft ) {
+			$result = $this->invoices->create_draft( $data );
+		} else {
+			$result = $this->invoices->create( $data );
+		}
 
 		if ( is_wp_error( $result ) ) {
 			$this->store_sync_error( $order, $result->get_error_message() );
@@ -207,12 +232,13 @@ class InvoiceSync {
 		$order->update_meta_data( self::META_INVOICE_ID, (string) $invoice_id );
 		$order->update_meta_data( self::META_INVOICE_NO, (string) $invoice_no );
 		$order->update_meta_data( self::META_INVOICE_TYPE, $invoice_type );
+		$order->update_meta_data( self::META_INVOICE_MODE, $is_draft ? 'draft' : 'final' );
 		$order->update_meta_data( self::META_SYNC_STATUS, 'synced' );
 		$order->update_meta_data( self::META_SYNC_DATE, gmdate( 'c' ) );
 		$order->delete_meta_data( self::META_SYNC_ERROR );
 		$order->save();
 
-		if ( ! $this->payment_sync->is_payment_synced( $order ) ) {
+		if ( ! $is_draft && ! $this->payment_sync->is_payment_synced( $order ) ) {
 			$payment_result = $this->payment_sync->sync_payment( $order );
 
 			if ( is_wp_error( $payment_result ) ) {
@@ -228,11 +254,12 @@ class InvoiceSync {
 		}
 
 		$this->logger->info(
-			'Invoice created in Conta',
+			$is_draft ? 'Invoice draft created in Conta' : 'Invoice created in Conta',
 			[
 				'order_id'   => $order->get_id(),
 				'invoice_id' => $invoice_id,
 				'invoice_no' => $invoice_no,
+				'mode'       => $is_draft ? 'draft' : 'final',
 			]
 		);
 
@@ -278,6 +305,14 @@ class InvoiceSync {
 			return new WP_Error(
 				'invoice_not_synced',
 				__( 'Cannot create credit note: order has not been synced to Conta.', 'ihumbak-woo-conta-api' )
+			);
+		}
+
+		$synced_mode = $order->get_meta( self::META_INVOICE_MODE );
+		if ( 'draft' === $synced_mode ) {
+			return new WP_Error(
+				'invoice_is_draft',
+				__( 'Cannot create credit note: the invoice is a draft. Finalize it in Conta first.', 'ihumbak-woo-conta-api' )
 			);
 		}
 
