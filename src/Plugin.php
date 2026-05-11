@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Ihumbak\WooConta;
 
 use Ihumbak\WooConta\Admin\OrderMetaBox;
+use Ihumbak\WooConta\Admin\OrdersListColumn;
 use Ihumbak\WooConta\Admin\SettingsPage;
 use Ihumbak\WooConta\API\Client;
 use Ihumbak\WooConta\API\Endpoints\Customers;
@@ -125,6 +126,9 @@ final class Plugin {
 
 			$order_meta_box = new OrderMetaBox( $invoice_sync, $payment_sync, $customer_sync, $this->settings );
 			$order_meta_box->register();
+
+			$orders_list_column = new OrdersListColumn();
+			$orders_list_column->register();
 		}
 	}
 
