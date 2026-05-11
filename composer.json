@@ -3,7 +3,7 @@
     "description": "WooCommerce plugin for Conta.no integration — send orders to Conta for invoice generation",
     "type": "wordpress-plugin",
     "license": "GPL-2.0-or-later",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "authors": [
         {
             "name": "Michal Staniecko",

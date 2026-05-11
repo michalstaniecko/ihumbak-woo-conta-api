@@ -3,7 +3,7 @@
  * Plugin Name:       iHumbak WooConta API
  * Plugin URI:        https://github.com/michalstaniecko/ihumbak-woo-conta-api
  * Description:       WooCommerce integration with Conta.no — send orders to Conta for invoice generation.
- * Version:           0.2.0
+ * Version:           0.2.1
  * Author:            Michal Staniecko
  * Author URI:        https://github.com/michalstaniecko
  * License:           GPL-2.0-or-later
@@ -22,7 +22,7 @@ declare(strict_types=1);
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'IHUMBAK_WCA_VERSION', '0.2.0' );
+define( 'IHUMBAK_WCA_VERSION', '0.2.1' );
 define( 'IHUMBAK_WCA_FILE', __FILE__ );
 define( 'IHUMBAK_WCA_PATH', plugin_dir_path( __FILE__ ) );
 define( 'IHUMBAK_WCA_URL', plugin_dir_url( __FILE__ ) );
