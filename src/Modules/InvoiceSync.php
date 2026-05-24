@@ -378,7 +378,9 @@ class InvoiceSync {
 		 * @param string   $mode  Resolved mode: 'draft' or 'final'.
 		 * @param WC_Order $order The WooCommerce order being synced.
 		 */
-		return (string) apply_filters( 'ihumbak_wca_invoice_mode_for_order', $mode, $order );
+		$filtered = (string) apply_filters( 'ihumbak_wca_invoice_mode_for_order', $mode, $order );
+
+		return in_array( $filtered, [ 'draft', 'final' ], true ) ? $filtered : $mode;
 	}
 
 	/**

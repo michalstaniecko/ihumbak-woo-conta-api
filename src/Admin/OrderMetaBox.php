@@ -522,15 +522,40 @@ class OrderMetaBox {
 					$box.find('.ihumbak-wca-sync-order-btn').show().prop('disabled', false);
 				});
 
+				$box.on('focus', '#ihumbak-wca-invoice-mode-override', function () {
+					$(this).data('previousValue', $(this).val());
+				});
+
 				$box.on('change', '#ihumbak-wca-invoice-mode-override', function () {
 					if (syncInFlight) return;
 					var $select = $(this);
+					var previousValue = $select.data('previousValue');
 					$select.prop('disabled', true);
-					$.post(ajaxurl, {
-						action: 'ihumbak_wca_save_invoice_mode',
-						order_id: orderId,
-						mode: $select.val(),
-						ihumbak_wca_nonce: nonce
+					$.ajax({
+						url: ajaxurl,
+						type: 'POST',
+						data: {
+							action: 'ihumbak_wca_save_invoice_mode',
+							order_id: orderId,
+							mode: $select.val(),
+							ihumbak_wca_nonce: nonce
+						},
+						dataType: 'json'
+					}).done(function (response) {
+						if (response && response.success) {
+							$select.data('previousValue', $select.val());
+						} else {
+							var errorMsg = (response && response.data && response.data.message) ? response.data.message : ((response && response.data) || '<?php echo esc_js( __( 'Failed to save invoice mode.', 'ihumbak-woo-conta-api' ) ); ?>');
+							alert(errorMsg);
+							if (typeof previousValue !== 'undefined') {
+								$select.val(previousValue);
+							}
+						}
+					}).fail(function (xhr, status, error) {
+						alert('AJAX Error: ' + status + ' - ' + error);
+						if (typeof previousValue !== 'undefined') {
+							$select.val(previousValue);
+						}
 					}).always(function () {
 						$select.prop('disabled', false);
 					});
