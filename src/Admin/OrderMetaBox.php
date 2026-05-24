@@ -74,6 +74,7 @@ class OrderMetaBox {
 		add_action( 'wp_ajax_ihumbak_wca_sync_order', [ $this, 'ajax_sync_order' ] );
 		add_action( 'wp_ajax_ihumbak_wca_manual_invoice', [ $this, 'ajax_manual_invoice' ] );
 		add_action( 'wp_ajax_ihumbak_wca_search_customers', [ $this, 'ajax_search_customers' ] );
+		add_action( 'wp_ajax_ihumbak_wca_save_invoice_mode', [ $this, 'ajax_save_invoice_mode' ] );
 	}
 
 	/**
@@ -124,6 +125,11 @@ class OrderMetaBox {
 
 		$invoice_type = $order->get_meta( InvoiceSync::META_INVOICE_TYPE );
 		$dash         = '&#8212;';
+
+		$override_mode        = (string) $order->get_meta( InvoiceSync::META_INVOICE_MODE_OVERRIDE );
+		$current_invoice_mode = in_array( $override_mode, [ 'draft', 'final' ], true )
+			? $override_mode
+			: $this->settings->get_invoice_mode();
 		?>
 		<div id="ihumbak-wca-meta-box" data-order-id="<?php echo esc_attr( (string) $order_id ); ?>">
 			<div id="ihumbak-wca-sync-overlay">
@@ -201,6 +207,18 @@ class OrderMetaBox {
 
 			<div style="margin-top:12px;">
 				<?php if ( ! $is_assigned ) : ?>
+					<p class="ihumbak-wca-invoice-mode-override-wrapper" style="margin-bottom:10px;">
+						<label for="ihumbak-wca-invoice-mode-override" style="display:block;font-weight:600;margin-bottom:2px;">
+							<?php esc_html_e( 'Invoice Mode', 'ihumbak-woo-conta-api' ); ?>
+						</label>
+						<select name="ihumbak_wca_invoice_mode_override" id="ihumbak-wca-invoice-mode-override" style="width:100%;">
+							<option value="draft" <?php selected( $current_invoice_mode, 'draft' ); ?>><?php esc_html_e( 'Draft', 'ihumbak-woo-conta-api' ); ?></option>
+							<option value="final" <?php selected( $current_invoice_mode, 'final' ); ?>><?php esc_html_e( 'Final', 'ihumbak-woo-conta-api' ); ?></option>
+						</select>
+						<small style="display:block;color:#666;margin-top:2px;">
+							<?php esc_html_e( 'Overrides the global default for this order.', 'ihumbak-woo-conta-api' ); ?>
+						</small>
+					</p>
 					<button type="button"
 						class="button button-primary ihumbak-wca-sync-order-btn"
 						style="width:100%;margin-bottom:8px;">
@@ -319,6 +337,8 @@ class OrderMetaBox {
 						ihumbak_wca_nonce: nonce
 					};
 
+					postData.invoice_mode_override = $box.find('#ihumbak-wca-invoice-mode-override').val();
+
 					if (selectedCustomerId > 0) {
 						postData.selected_customer_id = selectedCustomerId;
 					}
@@ -347,6 +367,9 @@ class OrderMetaBox {
 								}
 								$box.find('#ihumbak-wca-error').remove();
 								$box.find('.ihumbak-wca-sync-order-btn').remove();
+								if (response.data.invoice_id) {
+									$box.find('.ihumbak-wca-invoice-mode-override-wrapper').remove();
+								}
 								$box.find('#ihumbak-wca-customer-selection').empty().hide();
 								if (response.data.error) {
 									$box.find('table').after(
@@ -499,6 +522,20 @@ class OrderMetaBox {
 					$box.find('.ihumbak-wca-sync-order-btn').show().prop('disabled', false);
 				});
 
+				$box.on('change', '#ihumbak-wca-invoice-mode-override', function () {
+					if (syncInFlight) return;
+					var $select = $(this);
+					$select.prop('disabled', true);
+					$.post(ajaxurl, {
+						action: 'ihumbak_wca_save_invoice_mode',
+						order_id: orderId,
+						mode: $select.val(),
+						ihumbak_wca_nonce: nonce
+					}).always(function () {
+						$select.prop('disabled', false);
+					});
+				});
+
 				$box.on('click', '#ihumbak-wca-manual-toggle', function(e) {
 					e.preventDefault();
 					$('#ihumbak-wca-manual-form').slideToggle(200);
@@ -596,6 +633,14 @@ class OrderMetaBox {
 		$selected_customer_id  = isset( $_POST['selected_customer_id'] ) ? absint( $_POST['selected_customer_id'] ) : 0;
 		$force_create_customer = ! empty( $_POST['force_create_customer'] );
 
+		if ( isset( $_POST['invoice_mode_override'] ) ) {
+			$posted_mode = sanitize_text_field( wp_unslash( $_POST['invoice_mode_override'] ) );
+			if ( in_array( $posted_mode, [ 'draft', 'final' ], true ) ) {
+				$order->update_meta_data( InvoiceSync::META_INVOICE_MODE_OVERRIDE, $posted_mode );
+				$order->save();
+			}
+		}
+
 		$result = $this->invoice_sync->sync_order( $order, '', $selected_customer_id, $force_create_customer );
 
 		if ( is_wp_error( $result ) ) {
@@ -618,6 +663,7 @@ class OrderMetaBox {
 				'invoice_id'     => (string) $order->get_meta( InvoiceSync::META_INVOICE_ID ),
 				'invoice_no'     => (string) $order->get_meta( InvoiceSync::META_INVOICE_NO ),
 				'invoice_type'   => (string) $order->get_meta( InvoiceSync::META_INVOICE_TYPE ),
+				'invoice_mode'   => (string) $order->get_meta( InvoiceSync::META_INVOICE_MODE ),
 				'customer_id'    => (string) $order->get_meta( CustomerSync::META_CUSTOMER_ID ),
 				'sync_date'      => (string) $order->get_meta( InvoiceSync::META_SYNC_DATE ),
 				'error'          => is_string( $sync_error ) && '' !== $sync_error ? $sync_error : '',
@@ -739,6 +785,46 @@ class OrderMetaBox {
 				'count'         => count( $customers ),
 			]
 		);
+	}
+
+	/**
+	 * AJAX handler for saving a per-order invoice mode override.
+	 *
+	 * @return void
+	 */
+	public function ajax_save_invoice_mode(): void {
+		check_ajax_referer( 'ihumbak_wca_meta_box', 'ihumbak_wca_nonce' );
+
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_send_json_error( __( 'Permission denied.', 'ihumbak-woo-conta-api' ), 403 );
+		}
+
+		$order_id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
+
+		if ( 0 === $order_id ) {
+			wp_send_json_error( __( 'Invalid order ID.', 'ihumbak-woo-conta-api' ), 400 );
+		}
+
+		$order = wc_get_order( $order_id );
+
+		if ( ! $order instanceof WC_Order ) {
+			wp_send_json_error( __( 'Order not found.', 'ihumbak-woo-conta-api' ), 404 );
+		}
+
+		if ( $this->invoice_sync->is_synced( $order ) ) {
+			wp_send_json_error( __( 'Invoice already synced.', 'ihumbak-woo-conta-api' ), 409 );
+		}
+
+		$mode = isset( $_POST['mode'] ) ? sanitize_text_field( wp_unslash( $_POST['mode'] ) ) : '';
+
+		if ( ! in_array( $mode, [ 'draft', 'final' ], true ) ) {
+			wp_send_json_error( __( 'Invalid invoice mode.', 'ihumbak-woo-conta-api' ), 400 );
+		}
+
+		$order->update_meta_data( InvoiceSync::META_INVOICE_MODE_OVERRIDE, $mode );
+		$order->save();
+
+		wp_send_json_success( [ 'saved_mode' => $mode ] );
 	}
 
 	/**

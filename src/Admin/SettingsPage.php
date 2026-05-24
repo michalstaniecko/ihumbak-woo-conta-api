@@ -315,8 +315,8 @@ class SettingsPage {
 			[
 				'type'    => 'select',
 				'id'      => 'ihumbak_wca_invoice_mode',
-				'name'    => __( 'Invoice Mode', 'ihumbak-woo-conta-api' ),
-				'desc'    => __( 'Draft creates an editable invoice draft in Conta. Final creates a finalized invoice immediately.', 'ihumbak-woo-conta-api' ),
+				'name'    => __( 'Default Invoice Mode', 'ihumbak-woo-conta-api' ),
+				'desc'    => __( 'Default mode applied to new orders. Draft creates an editable invoice draft in Conta. Final creates a finalized invoice immediately. Each order can override this on its edit screen.', 'ihumbak-woo-conta-api' ),
 				'options' => [
 					'draft' => __( 'Draft', 'ihumbak-woo-conta-api' ),
 					'final' => __( 'Final', 'ihumbak-woo-conta-api' ),
