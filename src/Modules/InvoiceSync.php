@@ -72,6 +72,15 @@ class InvoiceSync {
 	public const META_INVOICE_MODE = '_ihumbak_wca_invoice_mode';
 
 	/**
+	 * Order meta key for the per-order invoice mode override
+	 * (Draft / Final). When unset, the global Settings::get_invoice_mode()
+	 * default applies.
+	 *
+	 * @var string
+	 */
+	public const META_INVOICE_MODE_OVERRIDE = '_ihumbak_wca_invoice_mode_override';
+
+	/**
 	 * Invoices API endpoint.
 	 *
 	 * @var Invoices
@@ -196,7 +205,7 @@ class InvoiceSync {
 		$invoice       = Invoice::from_wc_order( $order, $customer_id, $this->vat_mapper, $this->settings );
 		$invoice->type = $invoice_type;
 
-		$is_draft = $this->settings->is_draft_mode();
+		$is_draft = 'draft' === $this->resolve_invoice_mode( $order );
 
 		if ( $is_draft ) {
 			$data = $invoice->to_draft_array();
@@ -345,6 +354,33 @@ class InvoiceSync {
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Resolve the effective invoice mode for a specific order.
+	 *
+	 * Checks per-order override first, falls back to the global setting,
+	 * then applies the `ihumbak_wca_invoice_mode_for_order` filter.
+	 *
+	 * @param WC_Order $order The WooCommerce order being synced.
+	 * @return string Resolved mode: 'draft' or 'final'.
+	 */
+	private function resolve_invoice_mode( WC_Order $order ): string {
+		$override = (string) $order->get_meta( self::META_INVOICE_MODE_OVERRIDE );
+		$mode     = in_array( $override, [ 'draft', 'final' ], true )
+			? $override
+			: $this->settings->get_invoice_mode();
+		/**
+		 * Filter the invoice mode resolved for a specific order.
+		 *
+		 * Applied after per-order override and global default fallback.
+		 *
+		 * @param string   $mode  Resolved mode: 'draft' or 'final'.
+		 * @param WC_Order $order The WooCommerce order being synced.
+		 */
+		$filtered = (string) apply_filters( 'ihumbak_wca_invoice_mode_for_order', $mode, $order );
+
+		return in_array( $filtered, [ 'draft', 'final' ], true ) ? $filtered : $mode;
 	}
 
 	/**
